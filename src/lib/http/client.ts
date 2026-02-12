@@ -6,6 +6,17 @@ interface ApiClientConfig {
   managementKey: string;
 }
 
+type Primitive = string | number | boolean;
+
+export interface RequestOptions {
+  params?: Record<string, Primitive | null | undefined>;
+  headers?: HeadersInit;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
+type ResponseType = "json" | "text" | "blob";
+
 export class ApiClient {
   private apiBase = "";
 
@@ -14,6 +25,20 @@ export class ApiClient {
   setConfig(config: ApiClientConfig): void {
     this.apiBase = computeManagementApiBase(config.apiBase);
     this.managementKey = config.managementKey.trim();
+  }
+
+  private buildUrl(path: string, params?: RequestOptions["params"]): string {
+    const baseUrl = `${this.apiBase}${path}`;
+    if (!params) return baseUrl;
+
+    const pairs = Object.entries(params).filter(([, value]) => value !== undefined && value !== null);
+    if (pairs.length === 0) return baseUrl;
+
+    const url = new URL(baseUrl, window.location.origin);
+    for (const [key, value] of pairs) {
+      url.searchParams.set(key, String(value));
+    }
+    return url.toString().replace(window.location.origin, "");
   }
 
   private readHeader(headers: Headers, keys: string[]): string | null {
@@ -26,23 +51,47 @@ export class ApiClient {
     return null;
   }
 
-  private async request<T>(path: string, init?: RequestInit): Promise<T> {
+  private async request<T>(
+    path: string,
+    {
+      init,
+      options,
+      responseType = "json",
+    }: {
+      init?: RequestInit;
+      options?: RequestOptions;
+      responseType?: ResponseType;
+    } = {},
+  ): Promise<T> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const timeoutMs = options?.timeoutMs ?? REQUEST_TIMEOUT_MS;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      const response = await fetch(`${this.apiBase}${path}`, {
+      const url = this.buildUrl(path, options?.params);
+      const headersFromOptions = new Headers(options?.headers);
+      const headersFromInit = new Headers(init?.headers);
+      const hasContentType = headersFromOptions.has("Content-Type") || headersFromInit.has("Content-Type");
+      const headers = new Headers();
+
+      if (typeof init?.body === "string" && !hasContentType) {
+        headers.set("Content-Type", "application/json");
+      }
+      if (this.managementKey) {
+        headers.set("Authorization", `Bearer ${this.managementKey}`);
+      }
+
+      headersFromOptions.forEach((value, key) => {
+        headers.set(key, value);
+      });
+      headersFromInit.forEach((value, key) => {
+        headers.set(key, value);
+      });
+
+      const response = await fetch(url, {
         ...init,
         signal: controller.signal,
-        headers: {
-          "Content-Type": "application/json",
-          ...(this.managementKey
-            ? {
-                Authorization: `Bearer ${this.managementKey}`,
-              }
-            : {}),
-          ...init?.headers,
-        },
+        headers,
       });
 
       if (response.status === 401) {
@@ -63,15 +112,26 @@ export class ApiClient {
       if (!response.ok) {
         let message = `请求失败（${response.status}）`;
         try {
-          const errorPayload = (await response.json()) as Record<string, unknown>;
-          const errorText =
-            typeof errorPayload.error === "string"
-              ? errorPayload.error
-              : typeof errorPayload.message === "string"
-                ? errorPayload.message
-                : null;
-          if (errorText) {
-            message = errorText;
+          const text = await response.text();
+          const trimmed = text.trim();
+
+          if (trimmed) {
+            try {
+              const errorPayload = JSON.parse(trimmed) as Record<string, unknown>;
+              const errorText =
+                typeof errorPayload.error === "string"
+                  ? errorPayload.error
+                  : typeof errorPayload.message === "string"
+                    ? errorPayload.message
+                    : null;
+              if (errorText) {
+                message = errorText;
+              } else {
+                message = trimmed;
+              }
+            } catch {
+              message = trimmed;
+            }
           }
         } catch {
           // 忽略错误体解析失败
@@ -83,28 +143,101 @@ export class ApiClient {
         return undefined as T;
       }
 
-      return (await response.json()) as T;
+      if (responseType === "blob") {
+        return (await response.blob()) as T;
+      }
+
+      const text = await response.text();
+      if (responseType === "text") {
+        return text as T;
+      }
+
+      const trimmed = text.trim();
+      if (!trimmed) {
+        return undefined as T;
+      }
+
+      try {
+        return JSON.parse(trimmed) as T;
+      } catch {
+        return text as unknown as T;
+      }
     } finally {
       clearTimeout(timer);
     }
   }
 
-  get<T>(path: string): Promise<T> {
-    return this.request<T>(path);
+  get<T>(path: string, options?: RequestOptions): Promise<T> {
+    return this.request<T>(path, { options });
   }
 
-  post<T>(path: string, body?: unknown): Promise<T> {
+  post<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
     return this.request<T>(path, {
-      method: "POST",
-      body: body === undefined ? undefined : JSON.stringify(body),
+      init: {
+        method: "POST",
+        body: body === undefined ? undefined : JSON.stringify(body),
+      },
+      options,
     });
   }
 
-  put<T>(path: string, body?: unknown): Promise<T> {
+  put<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
     return this.request<T>(path, {
-      method: "PUT",
-      body: body === undefined ? undefined : JSON.stringify(body),
+      init: {
+        method: "PUT",
+        body: body === undefined ? undefined : JSON.stringify(body),
+      },
+      options,
     });
+  }
+
+  patch<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
+    return this.request<T>(path, {
+      init: {
+        method: "PATCH",
+        body: body === undefined ? undefined : JSON.stringify(body),
+      },
+      options,
+    });
+  }
+
+  delete<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
+    return this.request<T>(path, {
+      init: {
+        method: "DELETE",
+        body: body === undefined ? undefined : JSON.stringify(body),
+      },
+      options,
+    });
+  }
+
+  postForm<T>(path: string, formData: FormData, options?: RequestOptions): Promise<T> {
+    return this.request<T>(path, {
+      init: {
+        method: "POST",
+        body: formData,
+      },
+      options,
+    });
+  }
+
+  putRawText(path: string, bodyText: string, options?: RequestOptions): Promise<void> {
+    return this.request<void>(path, {
+      init: {
+        method: "PUT",
+        body: bodyText,
+        headers: options?.headers,
+      },
+      options: { ...options, headers: undefined },
+    });
+  }
+
+  getText(path: string, options?: RequestOptions): Promise<string> {
+    return this.request<string>(path, { options, responseType: "text" });
+  }
+
+  getBlob(path: string, options?: RequestOptions): Promise<Blob> {
+    return this.request<Blob>(path, { options, responseType: "blob" });
   }
 }
 

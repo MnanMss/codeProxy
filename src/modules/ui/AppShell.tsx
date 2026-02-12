@@ -10,11 +10,17 @@ import {
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Activity,
+  Bot,
+  Coins,
+  FileKey,
+  FileText,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
   ScrollText,
+  Settings,
   Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/modules/auth/AuthProvider";
@@ -35,6 +41,12 @@ const ShellContext = createContext<ShellContextState | null>(null);
 const NAV_ITEMS = [
   { to: "/monitor", label: "监控中心", icon: Activity },
   { to: "/monitor/request-logs", label: "请求日志", icon: ScrollText },
+  { to: "/ai-providers", label: "AI供应商", icon: Bot },
+  { to: "/auth-files", label: "认证文件", icon: FileKey },
+  { to: "/oauth", label: "OAuth登录", icon: KeyRound },
+  { to: "/quota", label: "配额管理", icon: Coins },
+  { to: "/config", label: "配置面板", icon: Settings },
+  { to: "/logs", label: "日志查询", icon: FileText },
 ] as const;
 
 const getPageTitle = (pathname: string): string => {
@@ -43,6 +55,24 @@ const getPageTitle = (pathname: string): string => {
   }
   if (pathname.startsWith("/monitor")) {
     return "监控中心";
+  }
+  if (pathname.startsWith("/ai-providers")) {
+    return "AI供应商";
+  }
+  if (pathname.startsWith("/auth-files")) {
+    return "认证文件";
+  }
+  if (pathname.startsWith("/oauth")) {
+    return "OAuth登录";
+  }
+  if (pathname.startsWith("/quota")) {
+    return "配额管理";
+  }
+  if (pathname.startsWith("/config")) {
+    return "配置面板";
+  }
+  if (pathname.startsWith("/logs")) {
+    return "日志查询";
   }
   return "后台首页";
 };
@@ -161,7 +191,11 @@ function ShellHeader({
 }
 
 function ShellMain({ children }: PropsWithChildren) {
-  return <main className="p-6">{children}</main>;
+  return (
+    <main id="main-content" tabIndex={-1} className="p-6 focus-visible:outline-none">
+      {children}
+    </main>
+  );
 }
 
 export function AppShell({ children }: PropsWithChildren) {
@@ -205,6 +239,12 @@ export function AppShell({ children }: PropsWithChildren) {
   return (
     <ShellContext value={value}>
       <ShellFrame>
+        <a
+          href="#main-content"
+          className="sr-only z-[200] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm focus:not-sr-only focus:fixed focus:left-4 focus:top-4 dark:border-neutral-800 dark:bg-neutral-950 dark:text-white"
+        >
+          跳到主要内容
+        </a>
         <div className="flex h-screen overflow-hidden">
           <ShellSidebar collapsed={sidebarCollapsed} />
           <div className="flex min-w-0 flex-1 flex-col">

@@ -17,6 +17,9 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(function T
   { className, endAdornment, variant = "solid", ...props },
   ref,
 ) {
+  const ariaLabel =
+    props["aria-label"] ?? (typeof props.placeholder === "string" ? props.placeholder : undefined);
+
   const mergedClassName = [
     "w-full text-sm outline-none",
     "focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0",
@@ -29,12 +32,12 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(function T
     .join(" ");
 
   if (!endAdornment) {
-    return <input ref={ref} className={mergedClassName} {...props} />;
+    return <input ref={ref} className={mergedClassName} aria-label={ariaLabel} {...props} />;
   }
 
   return (
     <div className="relative">
-      <input ref={ref} className={mergedClassName} {...props} />
+      <input ref={ref} className={mergedClassName} aria-label={ariaLabel} {...props} />
       <div className="absolute right-2 top-1/2 -translate-y-1/2">{endAdornment}</div>
     </div>
   );
