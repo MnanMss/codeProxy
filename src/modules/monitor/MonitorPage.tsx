@@ -1119,9 +1119,6 @@ export function MonitorPage() {
               <ChartSpline size={18} className="text-slate-900 dark:text-white" />
               <span>监控中心</span>
             </h2>
-            <p className="mt-1 text-sm text-slate-600 dark:text-white/65">
-              聚合展示调用数据分布与用量趋势，辅助日常运维分析。
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <TimeRangeSelector value={timeRange} onChange={setTimeRange} />

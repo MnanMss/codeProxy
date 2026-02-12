@@ -415,13 +415,6 @@ export function AuthFilesPage() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-2">
-        <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">认证文件</h2>
-        <p className="text-sm text-slate-600 dark:text-white/65">
-          上传、下载、删除 JSON 认证文件，并管理 OAuth 排除模型与模型别名映射。
-        </p>
-      </header>
-
       <Tabs value={tab} onValueChange={(next) => setTab(next as typeof tab)}>
         <TabsList>
           <TabsTrigger value="files">文件列表</TabsTrigger>

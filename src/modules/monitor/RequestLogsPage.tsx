@@ -471,9 +471,6 @@ export function RequestLogsPage() {
               <ScrollText size={18} className="text-slate-900 dark:text-white" aria-hidden="true" />
               <span>请求日志</span>
             </h2>
-            <p className="mt-1 text-sm text-slate-600 dark:text-white/65">
-              浏览最近请求明细（来自 /usage），支持筛选与手动刷新。
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
@@ -594,4 +591,3 @@ export function RequestLogsPage() {
     </div>
   );
 }
-

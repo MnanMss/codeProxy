@@ -228,13 +228,6 @@ export function OAuthPage() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-2">
-        <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">OAuth 登录</h2>
-        <p className="text-sm text-slate-600 dark:text-white/65">
-          支持一键启动 OAuth 授权流程、轮询授权状态，以及远程浏览器回调提交。
-        </p>
-      </header>
-
       <div className="grid gap-4 lg:grid-cols-2">
         {PROVIDERS.map((provider) => {
           const state = states[provider.id] ?? {};

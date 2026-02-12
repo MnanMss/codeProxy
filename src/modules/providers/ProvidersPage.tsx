@@ -689,13 +689,6 @@ export function ProvidersPage() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-2">
-        <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">AI 供应商</h2>
-        <p className="text-sm text-slate-600 dark:text-white/65">
-          管理各供应商密钥与路由配置（Gemini / Claude / Codex / Vertex / OpenAI 兼容 / Ampcode）。
-        </p>
-      </header>
-
       <Card
         title="配置总览"
         description="加载配置后可在各标签页进行编辑与保存。"

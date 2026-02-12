@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { Coins, RefreshCw, ShieldAlert } from "lucide-react";
+import { RefreshCw, ShieldAlert } from "lucide-react";
 import { apiCallApi, authFilesApi, getApiCallErrorMessage } from "@/lib/http/apis";
 import type { ApiCallResult, AuthFileItem } from "@/lib/http/types";
 import { Card } from "@/modules/ui/Card";
@@ -1013,16 +1013,6 @@ export function QuotaPage() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-2">
-        <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
-          <Coins size={18} />
-          配额管理
-        </h2>
-        <p className="text-sm text-slate-600 dark:text-white/65">
-          基于认证文件与 api-call 代理请求，查询 Antigravity / Codex / Gemini CLI / Kiro 的额度信息。
-        </p>
-      </header>
-
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" onClick={() => void refreshAll()} disabled={isPending || loadingFiles}>
           <RefreshCw size={14} className={isPending ? "animate-spin" : ""} />
@@ -1041,4 +1031,3 @@ export function QuotaPage() {
     </div>
   );
 }
-
