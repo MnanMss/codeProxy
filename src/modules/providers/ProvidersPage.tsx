@@ -22,7 +22,6 @@ import {
 import type {
   ApiCallResult,
   OpenAIProvider,
-  ProviderModel,
   ProviderSimpleConfig,
 } from "@/lib/http/types";
 import { iterateUsageRecords } from "@/modules/monitor/monitor-utils";
@@ -35,212 +34,36 @@ import { ConfirmModal } from "@/modules/ui/ConfirmModal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/modules/ui/Tabs";
 import { ToggleSwitch } from "@/modules/ui/ToggleSwitch";
 import { useToast } from "@/modules/ui/ToastProvider";
-import { KeyValueInputList, keyValueEntriesToRecord, recordToKeyValueEntries, type KeyValueEntry } from "@/modules/providers/KeyValueInputList";
-import { ModelInputList, createEmptyModelEntry, type ModelEntryDraft } from "@/modules/providers/ModelInputList";
+import { KeyValueInputList, keyValueEntriesToRecord } from "@/modules/providers/KeyValueInputList";
+import { ModelInputList, createEmptyModelEntry } from "@/modules/providers/ModelInputList";
 import { ProviderStatusBar } from "@/modules/providers/ProviderStatusBar";
+import { ProviderKeyListCard } from "@/modules/providers/ProviderKeyListCard";
 import {
   buildCandidateUsageSourceIds,
   calculateStatusBarData,
-  mergeKeyStatBuckets,
   normalizeUsageSourceId,
   type KeyStatBucket,
   type StatusBarData,
 } from "@/modules/providers/provider-usage";
-
-const DISABLE_ALL_MODELS_RULE = "*";
-
-const hasDisableAllModelsRule = (models?: string[]) =>
-  Array.isArray(models) && models.some((m) => String(m ?? "").trim() === DISABLE_ALL_MODELS_RULE);
-
-const stripDisableAllModelsRule = (models?: string[]) =>
-  Array.isArray(models) ? models.filter((m) => String(m ?? "").trim() !== DISABLE_ALL_MODELS_RULE) : [];
-
-const withDisableAllModelsRule = (models?: string[]) => [
-  ...stripDisableAllModelsRule(models),
-  DISABLE_ALL_MODELS_RULE,
-];
-
-const withoutDisableAllModelsRule = (models?: string[]) => stripDisableAllModelsRule(models);
-
-const maskApiKey = (value: string): string => {
-  const trimmed = value.trim();
-  if (!trimmed) return "--";
-  if (trimmed.length <= 10) return `${trimmed.slice(0, 2)}***${trimmed.slice(-2)}`;
-  return `${trimmed.slice(0, 6)}***${trimmed.slice(-4)}`;
-};
-
-const excludedModelsToText = (models?: string[]) => (Array.isArray(models) ? models.join("\n") : "");
-
-const excludedModelsFromText = (text: string) =>
-  text
-    .split(/[\n,]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-const normalizeOpenAIBaseUrl = (baseUrl: string): string => {
-  let trimmed = String(baseUrl || "").trim();
-  if (!trimmed) return "";
-  trimmed = trimmed.replace(/\/?v0\/management\/?$/i, "");
-  trimmed = trimmed.replace(/\/+$/g, "");
-  if (!/^https?:\/\//i.test(trimmed)) {
-    trimmed = `http://${trimmed}`;
-  }
-  return trimmed;
-};
-
-const buildModelsEndpoint = (baseUrl: string): string => {
-  const normalized = normalizeOpenAIBaseUrl(baseUrl);
-  if (!normalized) return "";
-  return `${normalized}/models`;
-};
-
-const normalizeDiscoveredModels = (payload: unknown): { id: string; owned_by?: string }[] => {
-  if (!payload) return [];
-  const isRecord = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
-  const root = isRecord(payload) ? payload : null;
-  const data = root ? (root.data ?? root.models ?? payload) : payload;
-  if (!Array.isArray(data)) return [];
-
-  const seen = new Set<string>();
-  const result: { id: string; owned_by?: string }[] = [];
-  for (const item of data) {
-    if (!isRecord(item)) continue;
-    const id = String(item.id ?? item.name ?? "").trim();
-    if (!id) continue;
-    const key = id.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const owned_by = typeof item.owned_by === "string" ? item.owned_by : undefined;
-    result.push({ id, ...(owned_by ? { owned_by } : {}) });
-  }
-  return result;
-};
-
-type ProviderKeyDraft = {
-  apiKey: string;
-  prefix: string;
-  baseUrl: string;
-  proxyUrl: string;
-  excludedModelsText: string;
-  headersEntries: KeyValueEntry[];
-  modelEntries: ModelEntryDraft[];
-};
-
-const buildModelEntries = (models?: ProviderModel[]): ModelEntryDraft[] => {
-  if (!Array.isArray(models) || models.length === 0) return [];
-  return models.map((model) => ({
-    id: `model-${Date.now()}-${Math.random().toString(16).slice(2)}-${model.name ?? ""}`,
-    name: model.name ?? "",
-    alias: model.alias ?? "",
-    priorityText: model.priority !== undefined ? String(model.priority) : "",
-    testModel: model.testModel ?? "",
-  }));
-};
-
-const commitModelEntries = (
-  drafts: ModelEntryDraft[],
-  options?: { requireAlias?: boolean },
-): { models?: ProviderModel[]; error?: string } => {
-  const models: ProviderModel[] = [];
-  for (const draft of drafts) {
-    const name = draft.name.trim();
-    if (!name) continue;
-
-    const alias = draft.alias.trim();
-    if (options?.requireAlias && !alias) {
-      return { error: "models 必须填写 alias（使用 name => alias）" };
-    }
-
-    const priorityText = draft.priorityText.trim();
-    const priority = priorityText !== "" ? Number(priorityText) : undefined;
-    if (priority !== undefined && !Number.isFinite(priority)) {
-      return { error: `模型 ${name} 的 priority 必须是数字` };
-    }
-
-    const testModel = draft.testModel.trim();
-
-    models.push({
-      name,
-      ...(alias && alias !== name ? { alias } : {}),
-      ...(priority !== undefined ? { priority } : {}),
-      ...(testModel ? { testModel } : {}),
-    });
-  }
-
-  return { models: models.length ? models : undefined };
-};
-
-const buildProviderKeyDraft = (input?: ProviderSimpleConfig | null): ProviderKeyDraft => ({
-  apiKey: input?.apiKey ?? "",
-  prefix: input?.prefix ?? "",
-  baseUrl: input?.baseUrl ?? "",
-  proxyUrl: input?.proxyUrl ?? "",
-  excludedModelsText: excludedModelsToText(input?.excludedModels),
-  headersEntries: recordToKeyValueEntries(input?.headers),
-  modelEntries: buildModelEntries(input?.models),
-});
-
-type OpenAIDraft = {
-  name: string;
-  baseUrl: string;
-  prefix: string;
-  headersEntries: KeyValueEntry[];
-  priorityText: string;
-  testModel: string;
-  apiKeyEntries: { apiKey: string; proxyUrl: string; headersEntries: KeyValueEntry[]; id: string }[];
-  modelEntries: ModelEntryDraft[];
-};
-
-const buildOpenAIDraft = (input?: OpenAIProvider | null): OpenAIDraft => ({
-  name: input?.name ?? "",
-  baseUrl: input?.baseUrl ?? "",
-  prefix: input?.prefix ?? "",
-  headersEntries: recordToKeyValueEntries(input?.headers),
-  priorityText: input?.priority !== undefined ? String(input.priority) : "",
-  testModel: input?.testModel ?? "",
-  apiKeyEntries:
-    Array.isArray(input?.apiKeyEntries) && input.apiKeyEntries.length
-      ? input.apiKeyEntries.map((entry, idx) => ({
-          id: `key-${idx}-${entry.apiKey}`,
-          apiKey: entry.apiKey ?? "",
-          proxyUrl: entry.proxyUrl ?? "",
-          headersEntries: recordToKeyValueEntries(entry.headers),
-        }))
-      : [{ id: `key-${Date.now()}`, apiKey: "", proxyUrl: "", headersEntries: [] }],
-  modelEntries: buildModelEntries(input?.models),
-});
-
-type AmpMappingEntry = { id: string; from: string; to: string };
-
-const readString = (obj: Record<string, unknown> | null, ...keys: string[]): string => {
-  if (!obj) return "";
-  for (const key of keys) {
-    const value = obj[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return "";
-};
-
-const readBool = (obj: Record<string, unknown> | null, ...keys: string[]): boolean => {
-  if (!obj) return false;
-  for (const key of keys) {
-    const value = obj[key];
-    if (typeof value === "boolean") return value;
-    if (typeof value === "string") return value.trim().toLowerCase() === "true";
-    if (typeof value === "number") return value !== 0;
-  }
-  return false;
-};
-
-const sumStatsByCandidates = (candidates: string[], statsBySource: Record<string, KeyStatBucket>): KeyStatBucket => {
-  let total: KeyStatBucket = { success: 0, failure: 0 };
-  for (const candidate of candidates) {
-    const bucket = statsBySource[candidate];
-    if (!bucket) continue;
-    total = mergeKeyStatBuckets(total, bucket);
-  }
-  return total;
-};
+import {
+  buildModelsEndpoint,
+  buildOpenAIDraft,
+  buildProviderKeyDraft,
+  commitModelEntries,
+  hasDisableAllModelsRule,
+  maskApiKey,
+  normalizeDiscoveredModels,
+  excludedModelsFromText,
+  readBool,
+  readString,
+  stripDisableAllModelsRule,
+  sumStatsByCandidates,
+  withDisableAllModelsRule,
+  withoutDisableAllModelsRule,
+  type AmpMappingEntry,
+  type OpenAIDraft,
+  type ProviderKeyDraft,
+} from "@/modules/providers/providers-helpers";
 
 export function ProvidersPage() {
   const { notify } = useToast();
@@ -1624,156 +1447,5 @@ export function ProvidersPage() {
         }}
       />
     </div>
-  );
-}
-
-function ProviderKeyListCard({
-  icon: Icon,
-  title,
-  description,
-  items,
-  onAdd,
-  onEdit,
-  onDelete,
-  onToggleEnabled,
-  onCopy,
-  getStats,
-  getStatusBar,
-}: {
-  icon: typeof Globe;
-  title: string;
-  description: string;
-  items: ProviderSimpleConfig[];
-  onAdd: () => void;
-  onEdit: (index: number) => void;
-  onDelete: (index: number) => void;
-  onToggleEnabled?: (index: number, enabled: boolean) => void;
-  onCopy: (index: number) => void;
-  getStats: (item: ProviderSimpleConfig) => KeyStatBucket;
-  getStatusBar: (item: ProviderSimpleConfig) => StatusBarData;
-}) {
-  return (
-    <Card
-      title={title}
-      description={description}
-      actions={
-        <Button variant="primary" size="sm" onClick={onAdd}>
-          <Plus size={14} />
-          新增
-        </Button>
-      }
-    >
-      {items.length === 0 ? (
-        <EmptyState title="暂无配置" description="点击“新增”创建第一条配置。" />
-      ) : (
-        <div className="space-y-3">
-          {items.map((item, idx) => {
-            const disabled = hasDisableAllModelsRule(item.excludedModels);
-            const headerEntries = Object.entries(item.headers || {});
-            const excludedModels = stripDisableAllModelsRule(item.excludedModels);
-            const models = item.models || [];
-            const stats = getStats(item);
-            const statusData = getStatusBar(item);
-
-            return (
-              <div
-                key={`${item.apiKey}:${idx}`}
-                className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/60"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-                      <Icon size={16} className="text-slate-900 dark:text-white" />
-                      <span className="truncate">{maskApiKey(item.apiKey)}</span>
-                      {disabled ? (
-                        <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-200">
-                          已禁用
-                        </span>
-                      ) : null}
-                    </p>
-
-                    <div className="mt-1 space-y-1 text-xs text-slate-600 dark:text-white/65">
-                      <p className="truncate font-mono">prefix：{item.prefix || "--"}</p>
-                      <p className="truncate font-mono">baseUrl：{item.baseUrl || "--"}</p>
-                      {item.proxyUrl ? <p className="truncate font-mono">proxyUrl：{item.proxyUrl}</p> : null}
-                      <p className="tabular-nums">
-                        models：{models.length} · excluded：{excludedModels.length} · headers：{headerEntries.length} · 成功：{stats.success} · 失败：{stats.failure}
-                      </p>
-                    </div>
-
-                    {headerEntries.length ? (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {headerEntries.map(([k, v]) => (
-                          <span
-                            key={k}
-                            className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-700 dark:border-neutral-800 dark:bg-neutral-950/60 dark:text-white/75"
-                          >
-                            <span className="font-semibold">{k}:</span> {String(v)}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    {models.length ? (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {models.map((model) => (
-                          <span
-                            key={model.name}
-                            className="rounded-full bg-slate-900 px-2 py-0.5 text-[11px] text-white dark:bg-white dark:text-neutral-950"
-                            title={model.alias && model.alias !== model.name ? `${model.name} => ${model.alias}` : model.name}
-                          >
-                            {model.alias && model.alias !== model.name ? `${model.name} → ${model.alias}` : model.name}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    {excludedModels.length ? (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {excludedModels.map((model) => (
-                          <span
-                            key={model}
-                            className="rounded-full bg-rose-600/10 px-2 py-0.5 text-[11px] text-rose-700 dark:bg-rose-500/15 dark:text-rose-200"
-                          >
-                            {model}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    <ProviderStatusBar data={statusData} />
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    {onToggleEnabled ? (
-                      <div className="inline-flex items-center gap-2">
-                        <span className="text-sm font-semibold leading-none text-slate-900 dark:text-white">启用</span>
-                        <ToggleSwitch
-                          checked={!disabled}
-                          ariaLabel="启用"
-                          onCheckedChange={(enabled) => onToggleEnabled(idx, enabled)}
-                        />
-                      </div>
-                    ) : null}
-                    <Button variant="secondary" size="sm" onClick={() => onCopy(idx)} title="复制 API Key">
-                      <Copy size={14} />
-                      复制
-                    </Button>
-                    <Button variant="secondary" size="sm" onClick={() => onEdit(idx)}>
-                      <Settings2 size={14} />
-                      编辑
-                    </Button>
-                    <Button variant="danger" size="sm" onClick={() => onDelete(idx)}>
-                      <Trash2 size={14} />
-                      删除
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </Card>
   );
 }

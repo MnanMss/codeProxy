@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  useTransition,
-  type ComponentType,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
   Activity,
   ChartSpline,
@@ -32,214 +24,23 @@ import { Reveal } from "@/modules/ui/Reveal";
 import { EChart } from "@/modules/ui/charts/EChart";
 import { ChartLegend } from "@/modules/ui/charts/ChartLegend";
 import { useTheme } from "@/modules/ui/ThemeProvider";
-
-type TimeRange = 1 | 7 | 14 | 30;
-type HourWindow = 6 | 12 | 24;
-
-const TIME_RANGES: readonly TimeRange[] = [1, 7, 14, 30] as const;
-const HOUR_WINDOWS: readonly HourWindow[] = [6, 12, 24] as const;
+import type { HourWindow, TimeRange } from "@/modules/monitor/monitor-constants";
+import { CHART_COLOR_CLASSES, HOURLY_MODEL_COLORS } from "@/modules/monitor/monitor-constants";
+import { formatCompact, formatLocalDateKey, formatMonthDay } from "@/modules/monitor/monitor-format";
+import {
+  HourWindowSelector,
+  KpiCard,
+  MonitorCard as Card,
+  TimeRangeSelector,
+} from "@/modules/monitor/MonitorPagePieces";
+import {
+  createDailyTrendOption,
+  createHourlyModelOption,
+  createHourlyTokenOption,
+  createModelDistributionOption,
+} from "@/modules/monitor/monitor-chart-options";
 
 const createEmptyUsage = (): UsageData => ({ apis: {} });
-
-const CHART_COLORS: string[] = [
-  "#60a5fa",
-  "#34d399",
-  "#a78bfa",
-  "#fbbf24",
-  "#fb7185",
-  "#818cf8",
-  "#2dd4bf",
-  "#22d3ee",
-  "#a3e635",
-  "#f472b6",
-];
-
-const HOURLY_MODEL_COLORS: string[] = [
-  "rgba(110,231,183,0.88)",
-  "rgba(196,181,253,0.88)",
-  "rgba(252,211,77,0.88)",
-  "rgba(249,168,212,0.88)",
-  "rgba(94,234,212,0.88)",
-  "rgba(148,163,184,0.58)",
-];
-
-const CHART_COLOR_CLASSES: readonly string[] = [
-  "bg-blue-400",
-  "bg-emerald-400",
-  "bg-violet-400",
-  "bg-amber-400",
-  "bg-rose-400",
-  "bg-indigo-400",
-  "bg-teal-400",
-  "bg-cyan-400",
-  "bg-lime-400",
-  "bg-pink-400",
-] as const;
-
-const formatCompact = (value: number): string => {
-  if (!Number.isFinite(value)) return "0";
-  const abs = Math.abs(value);
-
-  const compact = (divisor: number, suffix: string) => {
-    const raw = value / divisor;
-    const fixed = raw.toFixed(1);
-    const trimmed = fixed.endsWith(".0") ? fixed.slice(0, -2) : fixed;
-    return `${trimmed}${suffix}`;
-  };
-
-  if (abs >= 1_000_000_000) return compact(1_000_000_000, "b");
-  if (abs >= 1_000_000) return compact(1_000_000, "m");
-  if (abs >= 1_000) return compact(1_000, "k");
-  return formatNumber(value);
-};
-
-const formatLocalDateKey = (date: Date): string => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const formatMonthDay = (date: Date): string => {
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${month}/${day}`;
-};
-
-const KpiCard = ({
-  title,
-  value,
-  hint,
-  icon: Icon,
-}: {
-  title: string;
-  value: ReactNode;
-  hint: string;
-  icon: ComponentType<{ size?: number; className?: string }>;
-}) => {
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/70">
-      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-white/55">
-        <Icon size={14} className="text-slate-900 dark:text-white" />
-        <span>{title}</span>
-      </p>
-      <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
-        {value}
-      </p>
-      <p className="mt-2 text-xs text-slate-600 dark:text-white/65">{hint}</p>
-    </article>
-  );
-};
-
-const TimeRangeSelector = ({
-  value,
-  onChange,
-}: {
-  value: TimeRange;
-  onChange: (next: TimeRange) => void;
-}) => {
-  return (
-    <div className="inline-flex gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/60">
-      {TIME_RANGES.map((range) => {
-        const active = value === range;
-        const label = range === 1 ? "今天" : `${range} 天`;
-        return (
-          <button
-            key={range}
-            type="button"
-            onClick={() => onChange(range)}
-            className={
-              active
-                ? "rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white dark:bg-white dark:text-neutral-950"
-                : "rounded-xl px-3 py-1.5 text-xs text-slate-700 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
-            }
-          >
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
-};
-
-const HourWindowSelector = ({
-  value,
-  onChange,
-}: {
-  value: HourWindow;
-  onChange: (next: HourWindow) => void;
-}) => {
-  return (
-    <div className="inline-flex gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/60">
-      {HOUR_WINDOWS.map((range) => {
-        const active = value === range;
-        return (
-          <button
-            key={range}
-            type="button"
-            onClick={() => onChange(range)}
-            className={
-              active
-                ? "rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white dark:bg-white dark:text-neutral-950"
-                : "rounded-xl px-3 py-1.5 text-xs text-slate-700 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
-            }
-          >
-            最近{range}小时
-          </button>
-        );
-      })}
-    </div>
-  );
-};
-
-const Card = ({
-  title,
-  description,
-  actions,
-  loading = false,
-  children,
-}: {
-  title: string;
-  description?: string;
-  actions?: ReactNode;
-  loading?: boolean;
-  children: ReactNode;
-}) => {
-  return (
-    <section
-      className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/70"
-      aria-busy={loading}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h3>
-          {description ? (
-            <p className="text-xs text-slate-600 dark:text-white/65">{description}</p>
-          ) : null}
-        </div>
-        {actions ? <div className="shrink-0">{actions}</div> : null}
-      </div>
-      <div className="relative mt-4 min-w-0">
-        {children}
-        {loading ? (
-          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/65 backdrop-blur-sm dark:bg-neutral-950/45">
-            <div
-              role="status"
-              aria-live="polite"
-              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/85 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/70 dark:text-white/80"
-            >
-              <span
-                className="h-4 w-4 rounded-full border-2 border-slate-300/80 border-t-slate-900 motion-reduce:animate-none motion-safe:animate-spin dark:border-white/20 dark:border-t-white/85"
-                aria-hidden="true"
-              />
-              <span className="tabular-nums">加载中…</span>
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </section>
-  );
-};
 
 export function MonitorPage() {
   const {
@@ -536,47 +337,10 @@ export function MonitorPage() {
     });
   }, [hourlySeries.tokenKeys]);
 
-  const modelDistributionOption = useMemo(() => {
-    return {
-      backgroundColor: "transparent",
-      color: [...CHART_COLORS, "#94a3b8"],
-      tooltip: {
-        trigger: "item",
-        renderMode: "html",
-        appendToBody: true,
-        confine: true,
-        borderWidth: 0,
-        backgroundColor: "rgba(15, 23, 42, 0.92)",
-        textStyle: { color: "#fff" },
-        extraCssText: "z-index: 10000;",
-        formatter: (params: { name: string; value: number; percent: number }) => {
-          const valueLabel = formatCompact(params.value ?? 0);
-          return `${params.name}<br/>${valueLabel}（${(params.percent ?? 0).toFixed(1)}%）`;
-        },
-      },
-      series: [
-        {
-          name: "模型",
-          type: "pie",
-          radius: ["52%", "72%"],
-          center: ["50%", "50%"],
-          avoidLabelOverlap: true,
-          label: { show: false },
-          labelLine: { show: false },
-          itemStyle: {
-            borderRadius: 3,
-            borderWidth: 2,
-            borderColor: isDark ? "rgba(10,10,10,0.75)" : "rgba(255,255,255,0.92)",
-          },
-          emphasis: { scale: true, scaleSize: 6 },
-          data: modelDistributionData,
-        },
-      ],
-      animationEasing: "cubicOut" as const,
-      animationDuration: 520,
-      animationDurationUpdate: 360,
-    };
-  }, [isDark, modelDistributionData]);
+  const modelDistributionOption = useMemo(
+    () => createModelDistributionOption({ isDark, data: modelDistributionData }),
+    [isDark, modelDistributionData],
+  );
 
   const dailyLegendAvailability = useMemo(() => {
     const points = dailySeries.filter(
@@ -615,475 +379,48 @@ export function MonitorPage() {
     });
   }, [modelDistributionData]);
 
-  const dailyTrendOption = useMemo(() => {
-    const points = dailySeries.filter(
-      (item) => item.requests > 0 || item.inputTokens > 0 || item.outputTokens > 0,
-    );
-    const visiblePoints = points.length > 0 ? points : dailySeries;
+  const dailyTrendOption = useMemo(
+    () => createDailyTrendOption({ dailySeries, dailyLegendSelected, isDark }),
+    [dailyLegendSelected, dailySeries, isDark, timeRange],
+  );
 
-    const x = visiblePoints.map((item) => item.label);
-    const requestY = visiblePoints.map((item) => item.requests);
-    const inputY = visiblePoints.map((item) => item.inputTokens);
-    const outputY = visiblePoints.map((item) => item.outputTokens);
-    const tokenTotals = visiblePoints.map((item) => item.inputTokens + item.outputTokens);
+  const hourlyModelOption = useMemo(
+    () =>
+      createHourlyModelOption({
+        hourlySeries,
+        modelHourWindow,
+        hourlyModelSelected,
+        paletteColorByKey: hourlyModelPalette.colorByKey,
+        isDark,
+      }),
+    [
+      hourlyModelPalette.colorByKey,
+      hourlyModelSelected,
+      hourlySeries.modelKeys,
+      hourlySeries.modelPoints,
+      isDark,
+      modelHourWindow,
+    ],
+  );
 
-    const formatTokenCompact = (value: number) => {
-      const abs = Math.abs(value);
-      if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-      if (abs >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
-      return String(Math.round(value));
-    };
-
-    const visibleCount = visiblePoints.length;
-    const barMaxWidth =
-      visibleCount <= 1
-        ? 56
-        : visibleCount <= 3
-          ? 44
-          : visibleCount <= 7
-            ? 36
-            : visibleCount <= 14
-              ? 28
-              : 18;
-
-    const hasInput = inputY.some((value) => value > 0);
-    const hasOutput = outputY.some((value) => value > 0);
-    const hasRequests = requestY.some((value) => value > 0);
-
-    const showInput = hasInput && (dailyLegendSelected["输入 Token"] ?? true);
-    const showOutput = hasOutput && (dailyLegendSelected["输出 Token"] ?? true);
-    const showRequests = hasRequests && (dailyLegendSelected["请求数"] ?? true);
-
-    const tokenAxisAnchor =
-      showInput || showOutput
-        ? visiblePoints.map((item) => {
-            const candidates: number[] = [];
-            if (showInput) candidates.push(item.inputTokens);
-            if (showOutput) candidates.push(item.outputTokens);
-            return candidates.length > 0 ? Math.max(...candidates) : 0;
-          })
-        : tokenTotals;
-
-    const requestAxisAnchor = showRequests ? requestY : requestY.map(() => 0);
-
-    const tokenAxisMaxRaw = tokenAxisAnchor.reduce((acc, value) => Math.max(acc, value), 0);
-    const requestAxisMaxRaw = requestAxisAnchor.reduce((acc, value) => Math.max(acc, value), 0);
-    const tokenAxisMax = Math.max(1, Math.ceil(tokenAxisMaxRaw * 1.1));
-    const requestAxisMax = Math.max(1, Math.ceil(requestAxisMaxRaw * 1.1));
-
-    const series: Array<Record<string, unknown>> = [];
-    const inputSeries = showInput
-      ? {
-          name: "输入 Token",
-          type: "bar",
-          yAxisIndex: 0,
-          barMaxWidth,
-          itemStyle: { borderRadius: 0, color: "rgba(196,181,253,0.88)" },
-          emphasis: { focus: "series" },
-          data: inputY,
-        }
-      : null;
-
-    const outputSeries = showOutput
-      ? {
-          name: "输出 Token",
-          type: "bar",
-          yAxisIndex: 0,
-          barMaxWidth,
-          itemStyle: { borderRadius: [4, 4, 0, 0], color: "rgba(110,231,183,0.88)" },
-          emphasis: { focus: "series" },
-          data: outputY,
-        }
-      : null;
-
-    if (inputSeries && outputSeries) {
-      const inputMax = inputY.reduce((acc, value) => Math.max(acc, value), 0);
-      const outputMax = outputY.reduce((acc, value) => Math.max(acc, value), 0);
-      const inputSum = inputY.reduce((acc, value) => acc + value, 0);
-      const outputSum = outputY.reduce((acc, value) => acc + value, 0);
-      const inputSmaller = inputMax === outputMax ? inputSum <= outputSum : inputMax <= outputMax;
-      const front = inputSmaller ? inputSeries : outputSeries;
-      const back = inputSmaller ? outputSeries : inputSeries;
-      series.push({ ...back, z: 2 });
-      series.push({ ...front, z: 3, barGap: "-100%" });
-    } else if (inputSeries) {
-      series.push({ ...inputSeries, z: 2 });
-    } else if (outputSeries) {
-      series.push({ ...outputSeries, z: 2 });
-    }
-
-    if (showRequests) {
-      series.push({
-        name: "请求数",
-        type: "line",
-        yAxisIndex: 1,
-        smooth: true,
-        symbol: "circle",
-        symbolSize: 7,
-        lineStyle: { width: 3, color: "#3b82f6" },
-        itemStyle: { color: "#3b82f6" },
-        data: requestY,
-        z: 10,
-      });
-    }
-
-    series.push({
-      name: "__token_axis__",
-      type: "line",
-      yAxisIndex: 0,
-      data: tokenAxisAnchor,
-      showSymbol: false,
-      silent: true,
-      tooltip: { show: false },
-      emphasis: { disabled: true },
-      lineStyle: { opacity: 0 },
-      itemStyle: { opacity: 0 },
-    });
-
-    series.push({
-      name: "__request_axis__",
-      type: "line",
-      yAxisIndex: 1,
-      data: requestAxisAnchor,
-      showSymbol: false,
-      silent: true,
-      tooltip: { show: false },
-      emphasis: { disabled: true },
-      lineStyle: { opacity: 0 },
-      itemStyle: { opacity: 0 },
-    });
-
-    return {
-      backgroundColor: "transparent",
-      color: ["rgba(196,181,253,0.88)", "rgba(110,231,183,0.88)", "#3b82f6"],
-      tooltip: {
-        trigger: "axis",
-        axisPointer: { type: "shadow" },
-        renderMode: "html",
-        appendToBody: true,
-        confine: true,
-        borderWidth: 0,
-        backgroundColor: "rgba(15, 23, 42, 0.92)",
-        textStyle: { color: "#fff" },
-        extraCssText: "z-index: 10000;",
-      },
-      legend: {
-        show: false,
-      },
-      grid: { left: 74, right: 74, top: 18, bottom: 78 },
-      xAxis: {
-        type: "category",
-        data: x,
-        axisTick: { show: false },
-        axisLabel: { margin: 34, hideOverlap: true },
-        axisLine: {
-          lineStyle: { color: isDark ? "rgba(255,255,255,0.16)" : "rgba(148, 163, 184, 0.55)" },
-        },
-      },
-      yAxis: [
-        {
-          type: "value",
-          name: "Token",
-          min: 0,
-          max: tokenAxisMax,
-          nameLocation: "middle",
-          nameRotate: 90,
-          nameGap: 58,
-          nameTextStyle: { fontWeight: 600 },
-          axisLabel: {
-            formatter: (value: number) => formatTokenCompact(value),
-            margin: 12,
-            width: 56,
-            overflow: "truncate",
-          },
-          splitNumber: 4,
-          splitLine: {
-            lineStyle: { color: isDark ? "rgba(255,255,255,0.08)" : "rgba(148, 163, 184, 0.25)" },
-          },
-        },
-        {
-          type: "value",
-          name: "请求数",
-          min: 0,
-          max: requestAxisMax,
-          nameLocation: "middle",
-          nameRotate: 270,
-          nameGap: 58,
-          nameTextStyle: { fontWeight: 600 },
-          axisLabel: {
-            formatter: (value: number) => formatNumber(value),
-            margin: 12,
-            width: 56,
-            overflow: "truncate",
-          },
-          splitNumber: 4,
-          splitLine: { show: false },
-        },
-      ],
-      series,
-      animationEasing: "cubicOut" as const,
-      animationDuration: 520,
-      animationDurationUpdate: 360,
-    };
-  }, [dailyLegendSelected, dailySeries, isDark, timeRange]);
-
-  const hourlyModelOption = useMemo(() => {
-    const points = hourlySeries.modelPoints.slice(-modelHourWindow);
-    const x = points.map((point) => point.label);
-    const barMaxWidth = modelHourWindow <= 6 ? 44 : modelHourWindow <= 12 ? 32 : 24;
-
-    const selectedKeys = hourlySeries.modelKeys.filter((key) => hourlyModelSelected[key] ?? true);
-    const showTotalLine = hourlyModelSelected["总请求"] ?? true;
-
-    const series = selectedKeys.map((key) => {
-      const data = points.map((point) => {
-        const item = point.stacks.find((stack) => stack.key === key);
-        return item?.value ?? 0;
-      });
-      return {
-        name: key,
-        type: "bar",
-        stack: "requests",
-        emphasis: { focus: "series" },
-        barMaxWidth,
-        itemStyle: { borderRadius: 0, color: hourlyModelPalette.colorByKey[key] ?? "rgba(148,163,184,0.58)" },
-        data,
-      };
-    });
-
-    const totals = points.map((point) =>
-      point.stacks.reduce((acc, item) => acc + (Number.isFinite(item.value) ? item.value : 0), 0),
-    );
-
-    const totalLineColor = "#3b82f6";
-    const selectedSums = points.map((point) =>
-      point.stacks.reduce((acc, item) => {
-        if (!selectedKeys.includes(item.key)) return acc;
-        return acc + (Number.isFinite(item.value) ? item.value : 0);
-      }, 0),
-    );
-
-    const yAxisMaxRaw = Math.max(
-      selectedSums.reduce((acc, value) => Math.max(acc, value), 0),
-      showTotalLine ? totals.reduce((acc, value) => Math.max(acc, value), 0) : 0,
-    );
-    const yAxisMax = Math.max(1, Math.ceil(yAxisMaxRaw * 1.1));
-
-    return {
-      backgroundColor: "transparent",
-      color: HOURLY_MODEL_COLORS,
-      tooltip: {
-        trigger: "axis",
-        axisPointer: { type: "shadow" },
-        renderMode: "html",
-        appendToBody: true,
-        confine: true,
-        borderWidth: 0,
-        backgroundColor: "rgba(15, 23, 42, 0.92)",
-        textStyle: { color: "#fff" },
-        extraCssText: "z-index: 10000;",
-      },
-      legend: {
-        show: false,
-      },
-      grid: { left: 74, right: 74, top: 18, bottom: 78 },
-      xAxis: {
-        type: "category",
-        data: x,
-        axisTick: { show: false },
-        axisLabel: { margin: 34, hideOverlap: true },
-        axisLine: {
-          lineStyle: { color: isDark ? "rgba(255,255,255,0.16)" : "rgba(148, 163, 184, 0.55)" },
-        },
-      },
-      yAxis: {
-        type: "value",
-        min: 0,
-        max: yAxisMax,
-        splitNumber: 4,
-        axisLabel: {
-          formatter: (value: number) => formatNumber(value),
-          margin: 12,
-          width: 56,
-          overflow: "truncate",
-        },
-        splitLine: {
-          lineStyle: { color: isDark ? "rgba(255,255,255,0.08)" : "rgba(148, 163, 184, 0.25)" },
-        },
-      },
-      series: [
-        ...series,
-        ...(showTotalLine
-          ? [
-              {
-                name: "总请求",
-                type: "line",
-                smooth: true,
-                symbol: "circle",
-                symbolSize: 6,
-                lineStyle: { width: 3, color: totalLineColor },
-                itemStyle: { color: totalLineColor },
-                emphasis: { focus: "series" },
-                data: totals,
-                z: 10,
-              },
-            ]
-          : []),
-        {
-          name: "__axis__",
-          type: "line",
-          data: showTotalLine ? totals : selectedSums,
-          showSymbol: false,
-          silent: true,
-          tooltip: { show: false },
-          emphasis: { disabled: true },
-          lineStyle: { opacity: 0 },
-          itemStyle: { opacity: 0 },
-        },
-      ],
-      animationEasing: "cubicOut" as const,
-      animationDuration: 520,
-      animationDurationUpdate: 360,
-    };
-  }, [
-    hourlyModelPalette.colorByKey,
-    hourlyModelSelected,
-    hourlySeries.modelKeys,
-    hourlySeries.modelPoints,
-    isDark,
-    modelHourWindow,
-  ]);
-
-  const hourlyTokenOption = useMemo(() => {
-    const points = hourlySeries.tokenPoints.slice(-tokenHourWindow);
-    const x = points.map((point) => point.label);
-    const barMaxWidth = tokenHourWindow <= 6 ? 44 : tokenHourWindow <= 12 ? 32 : 24;
-
-    const selectedKeys = hourlySeries.tokenKeys.filter((key) => hourlyTokenSelected[key] ?? true);
-    const showTotalLine = hourlyTokenSelected["总 Token"] ?? true;
-
-    const series = selectedKeys.map((key) => {
-      const data = points.map((point) => {
-        const item = point.stacks.find((stack) => stack.key === key);
-        return item?.value ?? 0;
-      });
-      return {
-        name: key,
-        type: "bar",
-        stack: "tokens",
-        emphasis: { focus: "series" },
-        barMaxWidth,
-        itemStyle: { color: hourlyTokenPalette.colorByKey[key] ?? "rgba(148,163,184,0.58)", borderRadius: 0 },
-        data,
-      };
-    });
-
-    const totals = points.map((point) =>
-      point.stacks.reduce((acc, item) => acc + (Number.isFinite(item.value) ? item.value : 0), 0),
-    );
-    const totalLineColor = "#3b82f6";
-    const selectedSums = points.map((point) =>
-      point.stacks.reduce((acc, item) => {
-        if (!selectedKeys.includes(item.key as (typeof hourlySeries.tokenKeys)[number])) return acc;
-        return acc + (Number.isFinite(item.value) ? item.value : 0);
-      }, 0),
-    );
-
-    const yAxisMaxRaw = Math.max(
-      selectedSums.reduce((acc, value) => Math.max(acc, value), 0),
-      showTotalLine ? totals.reduce((acc, value) => Math.max(acc, value), 0) : 0,
-    );
-    const yAxisMax = Math.max(1, Math.ceil(yAxisMaxRaw * 1.1));
-
-    return {
-      backgroundColor: "transparent",
-      color: [
-        hourlyTokenPalette.colorByKey["输入"],
-        hourlyTokenPalette.colorByKey["输出"],
-        hourlyTokenPalette.colorByKey["推理"],
-        hourlyTokenPalette.colorByKey["缓存"],
-      ],
-      tooltip: {
-        trigger: "axis",
-        axisPointer: { type: "shadow" },
-        renderMode: "html",
-        appendToBody: true,
-        confine: true,
-        borderWidth: 0,
-        backgroundColor: "rgba(15, 23, 42, 0.92)",
-        textStyle: { color: "#fff" },
-        extraCssText: "z-index: 10000;",
-      },
-      legend: {
-        show: false,
-      },
-      grid: { left: 74, right: 74, top: 18, bottom: 78 },
-      xAxis: {
-        type: "category",
-        data: x,
-        axisTick: { show: false },
-        axisLabel: { margin: 34, hideOverlap: true },
-        axisLine: {
-          lineStyle: { color: isDark ? "rgba(255,255,255,0.16)" : "rgba(148, 163, 184, 0.55)" },
-        },
-      },
-      yAxis: {
-        type: "value",
-        min: 0,
-        max: yAxisMax,
-        splitNumber: 4,
-        axisLabel: {
-          formatter: (value: number) => formatNumber(value),
-          margin: 12,
-          width: 56,
-          overflow: "truncate",
-        },
-        splitLine: {
-          lineStyle: { color: isDark ? "rgba(255,255,255,0.08)" : "rgba(148, 163, 184, 0.25)" },
-        },
-      },
-      series: [
-        ...series,
-        ...(showTotalLine
-          ? [
-              {
-                name: "总 Token",
-                type: "line",
-                smooth: true,
-                symbol: "circle",
-                symbolSize: 6,
-                lineStyle: { width: 3, color: totalLineColor },
-                itemStyle: { color: totalLineColor },
-                emphasis: { focus: "series" },
-                data: totals,
-                z: 10,
-              },
-            ]
-          : []),
-        {
-          name: "__axis__",
-          type: "line",
-          data: showTotalLine ? totals : selectedSums,
-          showSymbol: false,
-          silent: true,
-          tooltip: { show: false },
-          emphasis: { disabled: true },
-          lineStyle: { opacity: 0 },
-          itemStyle: { opacity: 0 },
-        },
-      ],
-      animationEasing: "cubicOut" as const,
-      animationDuration: 520,
-      animationDurationUpdate: 360,
-    };
-  }, [
-    hourlySeries.tokenKeys,
-    hourlySeries.tokenPoints,
-    hourlyTokenPalette.colorByKey,
-    hourlyTokenSelected,
-    isDark,
-    tokenHourWindow,
-  ]);
+  const hourlyTokenOption = useMemo(
+    () =>
+      createHourlyTokenOption({
+        hourlySeries,
+        tokenHourWindow,
+        hourlyTokenSelected,
+        paletteColorByKey: hourlyTokenPalette.colorByKey,
+        isDark,
+      }),
+    [
+      hourlySeries.tokenKeys,
+      hourlySeries.tokenPoints,
+      hourlyTokenPalette.colorByKey,
+      hourlyTokenSelected,
+      isDark,
+      tokenHourWindow,
+    ],
+  );
 
   const modelActions = (
     <div className="inline-flex gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/60">
