@@ -56,7 +56,7 @@ export function ToggleSwitch({
   }
 
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className={description ? "flex items-start justify-between gap-4" : "flex items-center justify-between gap-4"}>
       <div className="min-w-0">
         {label ? (
           <label htmlFor={id} className="block text-sm font-semibold text-slate-900 dark:text-white">

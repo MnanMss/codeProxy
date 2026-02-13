@@ -247,10 +247,10 @@ function VirtualRequestLogTable({
         className="h-[calc(100vh-520px)] min-h-[360px] overflow-auto"
       >
         <table className="w-full min-w-[1260px] table-fixed border-separate border-spacing-0 text-sm">
-          <caption className="sr-only">请求日志虚拟表格</caption>
+          <caption className="sr-only">请求日志表格</caption>
           <thead className="sticky top-0 z-10 bg-white/95 backdrop-blur dark:bg-neutral-950/75">
             <tr className="h-11 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-white/55">
-              <th className="w-64 border-b border-slate-200 px-4 dark:border-neutral-800">API</th>
+              <th className="w-56 border-b border-slate-200 px-4 dark:border-neutral-800">时间</th>
               <th className="w-80 border-b border-slate-200 px-4 dark:border-neutral-800">模型</th>
               <th className="w-20 border-b border-slate-200 px-4 dark:border-neutral-800">状态</th>
               <th className="w-24 border-b border-slate-200 px-4 text-right dark:border-neutral-800">
@@ -265,7 +265,7 @@ function VirtualRequestLogTable({
               <th className="w-28 border-b border-slate-200 px-4 text-right dark:border-neutral-800">
                 总 Token
               </th>
-              <th className="w-56 border-b border-slate-200 px-4 dark:border-neutral-800">时间</th>
+              <th className="w-64 border-b border-slate-200 px-4 dark:border-neutral-800">API</th>
             </tr>
           </thead>
           <tbody className="text-slate-900 dark:text-white">
@@ -285,12 +285,9 @@ function VirtualRequestLogTable({
                     key={row.id}
                     className="h-10 text-sm transition hover:bg-slate-50/70 dark:hover:bg-white/5"
                   >
-                    <td className="border-b border-slate-100 px-4 align-middle dark:border-neutral-900">
-                      <OverflowTooltip
-                        content={row.maskedApiKey}
-                        className="block min-w-0 font-mono text-xs tabular-nums"
-                      >
-                        <span className="block min-w-0 truncate">{row.maskedApiKey}</span>
+                    <td className="border-b border-slate-100 px-4 align-middle font-mono text-xs tabular-nums text-slate-700 dark:border-neutral-900 dark:text-slate-200">
+                      <OverflowTooltip content={formatTimestamp(row.timestamp)} className="block min-w-0">
+                        <span className="block min-w-0 truncate">{formatTimestamp(row.timestamp)}</span>
                       </OverflowTooltip>
                     </td>
                     <td className="border-b border-slate-100 px-4 align-middle dark:border-neutral-900">
@@ -332,9 +329,9 @@ function VirtualRequestLogTable({
                         <span className="block min-w-0 truncate">{row.totalTokens.toLocaleString()}</span>
                       </OverflowTooltip>
                     </td>
-                    <td className="border-b border-slate-100 px-4 align-middle font-mono text-xs tabular-nums text-slate-700 dark:border-neutral-900 dark:text-slate-200">
-                      <OverflowTooltip content={formatTimestamp(row.timestamp)} className="block min-w-0">
-                        <span className="block min-w-0 truncate">{formatTimestamp(row.timestamp)}</span>
+                    <td className="border-b border-slate-100 px-4 align-middle dark:border-neutral-900">
+                      <OverflowTooltip content={row.maskedApiKey} className="block min-w-0 font-mono text-xs tabular-nums">
+                        <span className="block min-w-0 truncate">{row.maskedApiKey}</span>
                       </OverflowTooltip>
                     </td>
                   </tr>
@@ -495,7 +492,7 @@ export function RequestLogsPage() {
 
       <Card
         title="筛选"
-        description="筛选会即时生效；表格使用固定行高的虚拟渲染。"
+        description="筛选会即时生效。"
         loading={false}
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -565,8 +562,7 @@ export function RequestLogsPage() {
       </Card>
 
       <Card
-        title="请求日志（虚拟表格）"
-        description="滚动时仅渲染可视行，避免大列表卡顿。"
+        title="请求日志"
         loading={loading}
         actions={
           <button

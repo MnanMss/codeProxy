@@ -13,34 +13,31 @@ import { ConfigPage } from "@/modules/config/ConfigPage";
 import { LogsPage } from "@/modules/logs/LogsPage";
 import { ThemeProvider } from "@/modules/ui/ThemeProvider";
 import { ToastProvider } from "@/modules/ui/ToastProvider";
-import { TooltipProvider } from "@/modules/ui/Tooltip";
 
 export function AppRouter() {
   return (
     <ThemeProvider>
       <AuthProvider>
         <ToastProvider>
-          <TooltipProvider>
-            <div className="font-sans antialiased">
-              <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route element={<ProtectedRoute />}>
-                  <Route element={<DashboardLayout />}>
-                    <Route path="/monitor" element={<MonitorPage />} />
-                    <Route path="/monitor/request-logs" element={<RequestLogsPage />} />
-                    <Route path="/ai-providers" element={<ProvidersPage />} />
-                    <Route path="/auth-files" element={<AuthFilesPage />} />
-                    <Route path="/oauth" element={<OAuthPage />} />
-                    <Route path="/quota" element={<QuotaPage />} />
-                    <Route path="/config" element={<ConfigPage />} />
-                    <Route path="/logs" element={<LogsPage />} />
-                    <Route path="/" element={<Navigate to="/monitor" replace />} />
-                  </Route>
+          <div className="font-sans antialiased">
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route element={<ProtectedRoute />}>
+                <Route element={<DashboardLayout />}>
+                  <Route path="/monitor" element={<MonitorPage />} />
+                  <Route path="/monitor/request-logs" element={<RequestLogsPage />} />
+                  <Route path="/ai-providers" element={<ProvidersPage />} />
+                  <Route path="/auth-files" element={<AuthFilesPage />} />
+                  <Route path="/oauth" element={<OAuthPage />} />
+                  <Route path="/quota" element={<QuotaPage />} />
+                  <Route path="/config" element={<ConfigPage />} />
+                  <Route path="/logs" element={<LogsPage />} />
+                  <Route path="/" element={<Navigate to="/monitor" replace />} />
                 </Route>
-                <Route path="*" element={<Navigate to="/monitor" replace />} />
-              </Routes>
-            </div>
-          </TooltipProvider>
+              </Route>
+              <Route path="*" element={<Navigate to="/monitor" replace />} />
+            </Routes>
+          </div>
         </ToastProvider>
       </AuthProvider>
     </ThemeProvider>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Code2, Eye, RefreshCw, Save, Settings } from "lucide-react";
+import { ChevronDown, ChevronUp, Code2, Eye, RefreshCw, Save, Search, Settings } from "lucide-react";
 import { parse as parseYaml } from "yaml";
 import { configApi, configFileApi } from "@/lib/http/apis";
 import { VisualConfigEditor } from "@/modules/config/visual/VisualConfigEditor";
@@ -12,6 +12,7 @@ import { TextInput } from "@/modules/ui/Input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/modules/ui/Tabs";
 import { ToggleSwitch } from "@/modules/ui/ToggleSwitch";
 import { useToast } from "@/modules/ui/ToastProvider";
+import { HoverTooltip } from "@/modules/ui/Tooltip";
 
 type ConfigTab = "visual" | "source" | "runtime";
 
@@ -624,27 +625,42 @@ export function ConfigPage() {
   }, [isDirty, loadYaml]);
 
   const visualLayoutEnabled = tab === "visual";
-  const actionBarVisible = tab === "source";
   const saveDisabled = disableControls || loading || saving || !isDirty;
   const reloadDisabled = loading || saving;
+
+  const saveBar = (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/60">
+      <div
+        className={["inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold", statusTone()].join(
+          " ",
+        )}
+        aria-label="保存状态"
+        title="保存状态"
+      >
+        <span className="tabular-nums">{getStatusText()}</span>
+        {isDirty ? <span className="h-2 w-2 rounded-full bg-slate-900/70 dark:bg-white/70" aria-hidden="true" /> : null}
+      </div>
+      <div className="flex items-center gap-2">
+        <Button variant="secondary" size="sm" onClick={requestReload} disabled={reloadDisabled}>
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          重载
+        </Button>
+        <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={saveDisabled}>
+          <Save size={14} />
+          保存
+        </Button>
+      </div>
+    </div>
+  );
 
   return (
     <div
       className={
         visualLayoutEnabled
           ? "flex h-[calc(100dvh-112px)] min-h-0 flex-col gap-6"
-          : actionBarVisible
-            ? "space-y-6 pb-28"
-            : "space-y-6"
+          : "space-y-6"
       }
     >
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">配置面板</h2>
-        <p className="mt-1 text-sm text-slate-600 dark:text-white/65">
-          以“可视化 / 源代码”两种方式管理 <span className="font-mono">config.yaml</span>，并保留运行时快捷开关。
-        </p>
-      </div>
-
       <div className={visualLayoutEnabled ? "flex min-h-0 flex-1 flex-col gap-4" : undefined}>
         <Tabs value={tab} onValueChange={(next) => handleTabChange(next as ConfigTab)}>
           <TabsList>
@@ -662,37 +678,10 @@ export function ConfigPage() {
             </TabsTrigger>
           </TabsList>
 
-          <div className={visualLayoutEnabled ? "min-h-0 flex-1" : undefined}>
+          <div className={visualLayoutEnabled ? "mt-4 min-h-0 flex-1" : "mt-4"}>
             <TabsContent value="visual" className="h-full">
               <div className="flex min-h-0 h-full flex-col gap-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/60">
-                  <div
-                    className={[
-                      "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold",
-                      statusTone(),
-                    ].join(" ")}
-                    aria-label="保存状态"
-                    title="保存状态"
-                  >
-                    <span className="tabular-nums">{getStatusText()}</span>
-                    {isDirty ? (
-                      <span
-                        className="h-2 w-2 rounded-full bg-slate-900/70 dark:bg-white/70"
-                        aria-hidden="true"
-                      />
-                    ) : null}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="secondary" size="sm" onClick={requestReload} disabled={reloadDisabled}>
-                      <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-                      重载
-                    </Button>
-                    <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={saveDisabled}>
-                      <Save size={14} />
-                      保存
-                    </Button>
-                  </div>
-                </div>
+                {saveBar}
 
                 <Card
                   title="config.yaml（可视化）"
@@ -719,87 +708,105 @@ export function ConfigPage() {
             </TabsContent>
 
             <TabsContent value="source">
-              <Card
-                title="config.yaml（源代码）"
-                description="支持搜索、上一个/下一个匹配与键盘快捷键。"
-                loading={loading}
-              >
-                {error ? (
-                  <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 dark:border-rose-400/25 dark:bg-rose-500/15 dark:text-white">
-                    {error}
-                  </div>
-                ) : null}
+              <div className="space-y-4">
+                {saveBar}
+                <Card
+                  title="config.yaml（源代码）"
+                  description="支持搜索、上一个/下一个匹配与键盘快捷键。"
+                  loading={loading}
+                >
+                  {error ? (
+                    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 dark:border-rose-400/25 dark:bg-rose-500/15 dark:text-white">
+                      {error}
+                    </div>
+                  ) : null}
 
-                {!loading && !yamlText ? (
-                  <EmptyState title="空内容" description="服务端可能未配置 config.yaml 或接口返回为空。" />
-                ) : (
-                  <div className="space-y-3">
-                    <div className="grid gap-3 lg:grid-cols-3">
-                      <div className="lg:col-span-2">
-                        <TextInput
-                          value={searchQuery}
-                          onChange={(e) => {
-                            setSearchQuery(e.currentTarget.value);
-                            if (!e.currentTarget.value) {
-                              setLastSearchedQuery("");
-                              setSearchPositions([]);
-                              setSearchIndex(0);
+                  {!loading && !yamlText ? (
+                    <EmptyState title="空内容" description="服务端可能未配置 config.yaml 或接口返回为空。" />
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="grid gap-3 lg:grid-cols-3">
+                        <div className="lg:col-span-2 space-y-1">
+                          <TextInput
+                            value={searchQuery}
+                            onChange={(e) => {
+                              setSearchQuery(e.currentTarget.value);
+                              if (!e.currentTarget.value) {
+                                setLastSearchedQuery("");
+                                setSearchPositions([]);
+                                setSearchIndex(0);
+                              }
+                            }}
+                            placeholder="搜索配置内容"
+                            onKeyDown={(e) => {
+                              if (e.key !== "Enter") return;
+                              e.preventDefault();
+                              executeSearch(e.shiftKey ? "prev" : "next");
+                            }}
+                            disabled={disableControls || loading}
+                            endAdornment={
+                              <HoverTooltip content="搜索（回车）" placement="bottom">
+                                <span className="inline-flex h-6 w-6 items-center justify-center text-slate-400 dark:text-white/45">
+                                  <Search size={16} aria-hidden="true" />
+                                </span>
+                              </HoverTooltip>
                             }
-                          }}
-                          placeholder="搜索配置内容...（Enter 下一个 / Shift+Enter 上一个）"
-                          onKeyDown={(e) => {
-                            if (e.key !== "Enter") return;
-                            e.preventDefault();
-                            executeSearch(e.shiftKey ? "prev" : "next");
-                          }}
-                          disabled={disableControls || loading}
-                        />
-                      </div>
-                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/60">
-                        <span className="text-xs text-slate-600 dark:text-white/65 tabular-nums">
-                          {searchStats.total ? `${searchStats.current}/${searchStats.total}` : "--"}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Button variant="secondary" size="sm" onClick={() => executeSearch("next")} disabled={!searchQuery.trim()}>
-                            搜索
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => executeSearch("prev")}
-                            disabled={!searchStats.total}
-                          >
-                            上一个
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => executeSearch("next")}
-                            disabled={!searchStats.total}
-                          >
-                            下一个
-                          </Button>
+                          />
+                          <p className="text-[11px] text-slate-500 dark:text-white/55">
+                            回车：下一个 · Shift+回车：上一个 · 结果：
+                            <span className="ml-1 font-mono tabular-nums">
+                              {!lastSearchedQuery.trim()
+                                ? "未搜索"
+                                : searchStats.total
+                                  ? `${searchStats.current}/${searchStats.total}`
+                                  : "无匹配"}
+                            </span>
+                          </p>
+                        </div>
+                        <div className="flex h-11 items-center justify-end gap-3">
+                          <HoverTooltip content="上一个匹配（Shift+回车）" placement="top" disabled={!searchStats.total}>
+                            <button
+                              type="button"
+                              onClick={() => executeSearch("prev")}
+                              disabled={!searchStats.total}
+                              aria-label="上一个匹配"
+                              className="inline-flex h-8 w-8 items-center justify-center text-slate-400 transition hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/35 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white/45 dark:hover:text-white/80 dark:focus-visible:ring-white/15"
+                            >
+                              <ChevronUp size={18} aria-hidden="true" />
+                            </button>
+                          </HoverTooltip>
+                          <HoverTooltip content="下一个匹配（回车）" placement="bottom" disabled={!searchStats.total}>
+                            <button
+                              type="button"
+                              onClick={() => executeSearch("next")}
+                              disabled={!searchStats.total}
+                              aria-label="下一个匹配"
+                              className="inline-flex h-8 w-8 items-center justify-center text-slate-400 transition hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/35 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white/45 dark:hover:text-white/80 dark:focus-visible:ring-white/15"
+                            >
+                              <ChevronDown size={18} aria-hidden="true" />
+                            </button>
+                          </HoverTooltip>
                         </div>
                       </div>
-                    </div>
 
-                    <textarea
-                      ref={textareaRef}
-                      value={yamlText}
-                      onChange={(e) => {
-                        setYamlText(e.currentTarget.value);
-                        setYamlDirty(true);
-                        setSearchPositions([]);
-                        setSearchIndex(0);
-                        setLastSearchedQuery("");
-                      }}
-                      className="min-h-[60vh] w-full resize-y rounded-2xl border border-slate-200 bg-white px-4 py-3 font-mono text-xs text-slate-900 outline-none transition focus-visible:ring-2 focus-visible:ring-slate-400/35 dark:border-neutral-800 dark:bg-neutral-950 dark:text-slate-100 dark:focus-visible:ring-white/15"
-                      spellCheck={false}
-                      aria-label="config.yaml 编辑器"
-                    />
-                  </div>
-                )}
-              </Card>
+                      <textarea
+                        ref={textareaRef}
+                        value={yamlText}
+                        onChange={(e) => {
+                          setYamlText(e.currentTarget.value);
+                          setYamlDirty(true);
+                          setSearchPositions([]);
+                          setSearchIndex(0);
+                          setLastSearchedQuery("");
+                        }}
+                        className="min-h-[60vh] w-full resize-y rounded-2xl border border-slate-200 bg-white px-4 py-3 font-mono text-xs text-slate-900 outline-none transition focus-visible:ring-2 focus-visible:ring-slate-400/35 dark:border-neutral-800 dark:bg-neutral-950 dark:text-slate-100 dark:focus-visible:ring-white/15"
+                        spellCheck={false}
+                        aria-label="config.yaml 编辑器"
+                      />
+                    </div>
+                  )}
+                </Card>
+              </div>
             </TabsContent>
 
             <TabsContent value="runtime">
@@ -808,34 +815,6 @@ export function ConfigPage() {
           </div>
         </Tabs>
       </div>
-
-      {actionBarVisible ? (
-        <div className="fixed bottom-6 left-1/2 z-[110] w-[calc(100vw-2rem)] max-w-3xl -translate-x-1/2">
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/85 px-3 py-2 shadow-lg backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/75">
-            <div
-              className={[
-                "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold",
-                statusTone(),
-              ].join(" ")}
-              aria-label="保存状态"
-              title="保存状态"
-            >
-              <span className="tabular-nums">{getStatusText()}</span>
-              {isDirty ? <span className="h-2 w-2 rounded-full bg-slate-900/70 dark:bg-white/70" aria-hidden="true" /> : null}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm" onClick={requestReload} disabled={reloadDisabled}>
-                <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-                重载
-              </Button>
-              <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={saveDisabled}>
-                <Save size={14} />
-                保存
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       <ConfirmModal
         open={confirmReloadOpen}

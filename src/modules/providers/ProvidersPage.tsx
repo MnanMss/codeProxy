@@ -830,7 +830,7 @@ export function ProvidersPage() {
             <TabsTrigger value="ampcode">Ampcode</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="gemini" className="mt-4">
+          <TabsContent value="gemini" className="mt-6">
             <ProviderKeyListCard
               icon={Globe}
               title="Gemini Keys"
@@ -846,7 +846,7 @@ export function ProvidersPage() {
             />
           </TabsContent>
 
-          <TabsContent value="claude" className="mt-4">
+          <TabsContent value="claude" className="mt-6">
             <ProviderKeyListCard
               icon={Bot}
               title="Claude Keys"
@@ -862,7 +862,7 @@ export function ProvidersPage() {
             />
           </TabsContent>
 
-          <TabsContent value="codex" className="mt-4">
+          <TabsContent value="codex" className="mt-6">
             <ProviderKeyListCard
               icon={FileKey}
               title="Codex Keys"
@@ -878,7 +878,7 @@ export function ProvidersPage() {
             />
           </TabsContent>
 
-          <TabsContent value="vertex" className="mt-4">
+          <TabsContent value="vertex" className="mt-6">
             <ProviderKeyListCard
               icon={Database}
               title="Vertex Keys"
@@ -893,7 +893,7 @@ export function ProvidersPage() {
             />
           </TabsContent>
 
-          <TabsContent value="openai" className="mt-4">
+          <TabsContent value="openai" className="mt-6">
             <Card
               title="OpenAI 兼容提供商"
               description="多密钥、headers、模型别名与 /models 发现。"
@@ -1040,7 +1040,7 @@ export function ProvidersPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="ampcode" className="mt-4">
+          <TabsContent value="ampcode" className="mt-6">
             <Card
               title="Ampcode 集成"
               description="配置上游 URL / API Key、模型映射与强制映射开关。"
@@ -1253,7 +1253,7 @@ export function ProvidersPage() {
 
           <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/60">
             <p className="text-sm font-semibold text-slate-900 dark:text-white">连接与代理（可选）</p>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <div className="mt-3 grid gap-3">
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-slate-700 dark:text-white/75">Base URL</p>
                 <TextInput
