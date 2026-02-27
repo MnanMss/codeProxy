@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { HashRouter } from "react-router-dom";
 import { AppRouter } from "@/app/AppRouter";
 import "@/styles/index.css";
+import "goey-toast/styles.css";
 
 const rootElement = document.getElementById("root");
 
