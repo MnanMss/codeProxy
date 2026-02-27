@@ -35,17 +35,37 @@ export function MultiSelect({
     const searchRef = useRef<HTMLInputElement>(null);
     const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
 
-    // Compute dropdown position from trigger bounding rect
+    // Compute dropdown position from trigger bounding rect, with viewport flip
     const updatePosition = useCallback(() => {
         if (!triggerRef.current) return;
         const rect = triggerRef.current.getBoundingClientRect();
-        setDropdownStyle({
-            position: "fixed",
-            top: rect.bottom + 4,
-            left: rect.left,
-            width: rect.width,
-            zIndex: 99999,
-        });
+        const dropdownMaxH = 280; // approximate max dropdown height
+        const gap = 4;
+        const spaceBelow = window.innerHeight - rect.bottom - gap;
+        const spaceAbove = rect.top - gap;
+
+        // Flip upward if not enough space below but enough above
+        const openAbove = spaceBelow < dropdownMaxH && spaceAbove > spaceBelow;
+
+        if (openAbove) {
+            setDropdownStyle({
+                position: "fixed",
+                bottom: window.innerHeight - rect.top + gap,
+                left: rect.left,
+                width: rect.width,
+                maxHeight: Math.min(dropdownMaxH, spaceAbove),
+                zIndex: 99999,
+            });
+        } else {
+            setDropdownStyle({
+                position: "fixed",
+                top: rect.bottom + gap,
+                left: rect.left,
+                width: rect.width,
+                maxHeight: Math.min(dropdownMaxH, spaceBelow),
+                zIndex: 99999,
+            });
+        }
     }, []);
 
     // Close on outside click
@@ -128,10 +148,10 @@ export function MultiSelect({
         <div
             ref={dropdownRef}
             style={dropdownStyle}
-            className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-black/10 dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-black/30"
+            className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-black/10 dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-black/30"
         >
             {searchable && (
-                <div className="border-b border-slate-100 px-3 py-2 dark:border-neutral-800">
+                <div className="flex-shrink-0 border-b border-slate-100 px-3 py-2 dark:border-neutral-800">
                     <input
                         ref={searchRef}
                         type="text"
@@ -142,7 +162,7 @@ export function MultiSelect({
                     />
                 </div>
             )}
-            <div className="max-h-60 overflow-y-auto p-1">
+            <div className="min-h-0 flex-1 overflow-y-auto p-1">
                 {/* Select All option */}
                 <button
                     type="button"

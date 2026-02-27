@@ -125,6 +125,8 @@ const normalizeProviderKeyConfig = (item: unknown): ProviderKeyConfig | null => 
   if (!trimmed) return null;
 
   const config: ProviderKeyConfig = { apiKey: trimmed };
+  const name = record?.name;
+  if (name) config.name = String(name).trim();
   const prefix = normalizePrefix(record?.prefix ?? record?.["prefix"]);
   if (prefix) config.prefix = prefix;
   const baseUrl = record ? (record["base-url"] ?? record.baseUrl) : undefined;
@@ -137,9 +139,9 @@ const normalizeProviderKeyConfig = (item: unknown): ProviderKeyConfig | null => 
   if (models.length) config.models = models;
   const excludedModels = normalizeExcludedModels(
     record?.["excluded-models"] ??
-      record?.excludedModels ??
-      record?.["excluded_models"] ??
-      record?.excluded_models,
+    record?.excludedModels ??
+    record?.["excluded_models"] ??
+    record?.excluded_models,
   );
   if (excludedModels.length) config.excludedModels = excludedModels;
   return config;

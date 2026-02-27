@@ -1185,9 +1185,10 @@ export function ProvidersPage() {
             <div className="mt-2">
               <TextInput
                 value={keyDraft.name}
-                onChange={(e) =>
-                  setKeyDraft((prev) => ({ ...prev, name: e.currentTarget.value }))
-                }
+                onChange={(e) => {
+                  const val = e.currentTarget.value;
+                  setKeyDraft((prev) => ({ ...prev, name: val }));
+                }}
                 placeholder="例如：Gemini 主力渠道"
               />
             </div>
@@ -1219,9 +1220,10 @@ export function ProvidersPage() {
             <div className="mt-2">
               <TextInput
                 value={keyDraft.apiKey}
-                onChange={(e) =>
-                  setKeyDraft((prev) => ({ ...prev, apiKey: e.currentTarget.value }))
-                }
+                onChange={(e) => {
+                  const val = e.currentTarget.value;
+                  setKeyDraft((prev) => ({ ...prev, apiKey: val }));
+                }}
                 placeholder="粘贴 API Key"
                 endAdornment={
                   <button
@@ -1249,9 +1251,10 @@ export function ProvidersPage() {
             <div className="mt-2">
               <TextInput
                 value={keyDraft.prefix}
-                onChange={(e) =>
-                  setKeyDraft((prev) => ({ ...prev, prefix: e.currentTarget.value }))
-                }
+                onChange={(e) => {
+                  const val = e.currentTarget.value;
+                  setKeyDraft((prev) => ({ ...prev, prefix: val }));
+                }}
                 placeholder="例如：team-a"
               />
             </div>
@@ -1269,9 +1272,10 @@ export function ProvidersPage() {
                 <p className="text-xs font-semibold text-slate-700 dark:text-white/75">Base URL</p>
                 <TextInput
                   value={keyDraft.baseUrl}
-                  onChange={(e) =>
-                    setKeyDraft((prev) => ({ ...prev, baseUrl: e.currentTarget.value }))
-                  }
+                  onChange={(e) => {
+                    const val = e.currentTarget.value;
+                    setKeyDraft((prev) => ({ ...prev, baseUrl: val }));
+                  }}
                   placeholder={
                     editKeyType === "claude" ? "例如：https://api.anthropic.com" : "baseUrl"
                   }
@@ -1281,9 +1285,10 @@ export function ProvidersPage() {
                 <p className="text-xs font-semibold text-slate-700 dark:text-white/75">Proxy URL</p>
                 <TextInput
                   value={keyDraft.proxyUrl}
-                  onChange={(e) =>
-                    setKeyDraft((prev) => ({ ...prev, proxyUrl: e.currentTarget.value }))
-                  }
+                  onChange={(e) => {
+                    const val = e.currentTarget.value;
+                    setKeyDraft((prev) => ({ ...prev, proxyUrl: val }));
+                  }}
                   placeholder="proxyUrl"
                 />
               </div>
@@ -1354,9 +1359,10 @@ export function ProvidersPage() {
 
             <textarea
               value={keyDraft.excludedModelsText}
-              onChange={(e) =>
-                setKeyDraft((prev) => ({ ...prev, excludedModelsText: e.currentTarget.value }))
-              }
+              onChange={(e) => {
+                const val = e.currentTarget.value;
+                setKeyDraft((prev) => ({ ...prev, excludedModelsText: val }));
+              }}
               placeholder="每行一个模型；写 * 表示禁用全部模型"
               aria-label="excludedModels"
               className="mt-3 min-h-[140px] w-full resize-y rounded-2xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-900 outline-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-slate-400/35 dark:border-neutral-800 dark:bg-neutral-950 dark:text-slate-100 dark:placeholder:text-neutral-500 dark:focus-visible:ring-white/15"

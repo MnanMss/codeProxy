@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Copy, RefreshCw, Trash2 } from "lucide-react";
-import { AUTH_STORAGE_KEY } from "@/lib/constants";
+import { Copy, RefreshCw } from "lucide-react";
 import { configApi } from "@/lib/http/apis";
 import { useAuth } from "@/modules/auth/AuthProvider";
 import { Button } from "@/modules/ui/Button";
-import { ConfirmModal } from "@/modules/ui/ConfirmModal";
 import { TextInput } from "@/modules/ui/Input";
 import { useToast } from "@/modules/ui/ToastProvider";
 
@@ -65,8 +63,6 @@ export function SystemPage() {
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [models, setModels] = useState<string[]>([]);
   const [modelFilter, setModelFilter] = useState("");
-
-  const [confirm, setConfirm] = useState<null | { type: "clear-login" }>(null);
 
   const configApiKeys = useMemo(() => {
     const record = config ?? {};
@@ -145,16 +141,6 @@ export function SystemPage() {
     return models.filter((id) => id.toLowerCase().includes(needle));
   }, [modelFilter, models]);
 
-  const clearLoginStorage = () => {
-    auth.actions.logout();
-    try {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-    } catch {
-      // ignore
-    }
-    notify({ type: "success", message: "已清理登录信息" });
-  };
-
   const infoRows: Array<{ label: string; value: string }> = [
     { label: "API Base", value: auth.state.apiBase || "--" },
     { label: "管理接口", value: auth.meta.managementEndpoint || "--" },
@@ -170,10 +156,6 @@ export function SystemPage() {
         <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
           系统
         </h2>
-        <Button variant="danger" size="sm" onClick={() => setConfirm({ type: "clear-login" })}>
-          <Trash2 size={14} />
-          退出登录
-        </Button>
       </div>
 
       {/* Connection & Version Info */}
@@ -266,20 +248,7 @@ export function SystemPage() {
           )}
         </div>
       </div>
-
-      <ConfirmModal
-        open={confirm?.type === "clear-login"}
-        title="确认退出登录？"
-        description="此操作会退出登录并清理本地存储的连接信息。"
-        confirmText="确认退出"
-        cancelText="取消"
-        variant="danger"
-        onClose={() => setConfirm(null)}
-        onConfirm={() => {
-          setConfirm(null);
-          clearLoginStorage();
-        }}
-      />
     </div>
   );
 }
+

@@ -284,11 +284,18 @@ export function AiProvidersClaudeEditLayout() {
       !disableControls && !saving && !resolvedLoading && !invalidIndexParam && !invalidIndex;
     if (!canSave) return;
 
+    // 校验渠道名称
+    const trimmedName = (form.name ?? "").trim();
+    if (!trimmedName) {
+      showNotification(t("ai_providers.channel_name_required", { defaultValue: "渠道名称不能为空" }), "error");
+      return;
+    }
+
     setSaving(true);
     try {
       const payload: ProviderKeyConfig = {
         apiKey: form.apiKey.trim(),
-        name: form.name?.trim() || undefined,
+        name: trimmedName,
         prefix: form.prefix?.trim() || undefined,
         baseUrl: (form.baseUrl ?? "").trim() || undefined,
         proxyUrl: form.proxyUrl?.trim() || undefined,
@@ -304,14 +311,20 @@ export function AiProvidersClaudeEditLayout() {
         excludedModels: parseExcludedModels(form.excludedText),
       };
 
-      const nextList =
-        editIndex !== null
-          ? configs.map((item, idx) => (idx === editIndex ? payload : item))
-          : [...configs, payload];
+      if (editIndex !== null) {
+        // 编辑模式：使用 PATCH 更新单个配置项（不发送全量列表）
+        await providersApi.updateClaudeConfig(editIndex, payload);
+        const nextList = configs.map((item, idx) => (idx === editIndex ? payload : item));
+        setConfigs(nextList);
+        updateConfigValue("claude-api-key", nextList);
+      } else {
+        // 新增模式：使用 PUT 追加新项
+        const nextList = [...configs, payload];
+        await providersApi.saveClaudeConfigs(nextList);
+        setConfigs(nextList);
+        updateConfigValue("claude-api-key", nextList);
+      }
 
-      await providersApi.saveClaudeConfigs(nextList);
-      setConfigs(nextList);
-      updateConfigValue("claude-api-key", nextList);
       clearCache("claude-api-key");
       showNotification(
         editIndex !== null
