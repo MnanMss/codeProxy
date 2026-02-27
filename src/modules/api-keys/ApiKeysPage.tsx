@@ -19,9 +19,10 @@ import { Button } from "@/modules/ui/Button";
 import { EmptyState } from "@/modules/ui/EmptyState";
 import { useToast } from "@/modules/ui/ToastProvider";
 import { Modal } from "@/modules/ui/Modal";
-import { OverflowTooltip } from "@/modules/ui/Tooltip";
+import { HoverTooltip, OverflowTooltip } from "@/modules/ui/Tooltip";
 import { MultiSelect, type MultiSelectOption } from "@/modules/ui/MultiSelect";
-import { apiClient } from "@/lib/http/client";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { normalizeApiBase } from "@/lib/connection";
 
 /* ─── helpers ─── */
 
@@ -165,13 +166,23 @@ export function ApiKeysPage() {
 
     /* ─── load models ─── */
 
-    const loadModels = useCallback(async () => {
+    const loadModels = useCallback(async (apiKeyEntries: ApiKeyEntry[]) => {
         try {
-            // Fetch from /v1/models endpoint (OpenAI format)
-            const data = await apiClient.get<{ data?: { id: string }[] }>("/v1/models", {
-                headers: { Authorization: "" }, // override management auth
-            }).catch(() => null);
+            // Fetch directly from /v1/models (not via management API prefix)
+            const { apiBase } = useAuthStore.getState();
+            const serverBase = normalizeApiBase(apiBase);
+            if (!serverBase) return;
 
+            // Use an existing api-key for auth (management key is NOT a valid API key)
+            const apiKey = apiKeyEntries.find((e) => !e.disabled)?.key || apiKeyEntries[0]?.key;
+            if (!apiKey) return;
+
+            const resp = await fetch(`${serverBase}/v1/models`, {
+                headers: { Authorization: `Bearer ${apiKey}` },
+            }).catch(() => null);
+            if (!resp || !resp.ok) return;
+
+            const data = (await resp.json().catch(() => null)) as { data?: { id: string }[] } | null;
             if (data?.data) {
                 const opts: MultiSelectOption[] = data.data
                     .map((m) => ({ value: m.id, label: m.id }))
@@ -199,24 +210,28 @@ export function ApiKeysPage() {
                 .filter((k: string) => k && !entryKeySet.has(k))
                 .map((k: string): ApiKeyEntry => ({ key: k, "created-at": new Date().toISOString() }));
 
+            let finalEntries: ApiKeyEntry[];
             if (newEntries.length > 0) {
                 const merged = [...entriesData, ...newEntries];
                 try {
                     await apiKeyEntriesApi.replace(merged);
-                    setEntries(merged);
                     notify({ type: "success", message: `已自动导入 ${newEntries.length} 个旧 API Key` });
                 } catch {
-                    setEntries(merged);
+                    // silent
                 }
+                finalEntries = merged;
             } else {
-                setEntries(entriesData);
+                finalEntries = entriesData;
             }
+            setEntries(finalEntries);
+            // Load models after entries are available (needs a valid API key)
+            void loadModels(finalEntries);
         } catch (err: unknown) {
             notify({ type: "error", message: err instanceof Error ? err.message : "加载 API Keys 失败" });
         } finally {
             setLoading(false);
         }
-    }, [notify]);
+    }, [notify, loadModels]);
 
     const loadUsage = useCallback(async () => {
         setUsageLoading(true);
@@ -233,8 +248,7 @@ export function ApiKeysPage() {
     useEffect(() => {
         void loadEntries();
         void loadUsage();
-        void loadModels();
-    }, [loadEntries, loadUsage, loadModels]);
+    }, [loadEntries, loadUsage]);
 
     /* ─── toggle disable ─── */
 
@@ -497,17 +511,17 @@ export function ApiKeysPage() {
                     />
                 ) : (
                     <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-neutral-800">
-                        <table className="w-full min-w-[1000px] table-fixed border-separate border-spacing-0 text-sm">
+                        <table className="w-full border-separate border-spacing-0 text-sm">
                             <thead className="bg-white/95 backdrop-blur dark:bg-neutral-950/75">
                                 <tr className="h-11 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-white/55">
-                                    <th className="w-16 border-b border-slate-200 px-4 text-center dark:border-neutral-800">状态</th>
-                                    <th className="w-32 border-b border-slate-200 px-4 dark:border-neutral-800">名称</th>
-                                    <th className="w-52 border-b border-slate-200 px-4 dark:border-neutral-800">Key</th>
-                                    <th className="w-20 border-b border-slate-200 px-4 dark:border-neutral-800">每日限制</th>
-                                    <th className="w-20 border-b border-slate-200 px-4 dark:border-neutral-800">总配额</th>
-                                    <th className="w-44 border-b border-slate-200 px-4 dark:border-neutral-800">可用模型</th>
-                                    <th className="w-36 border-b border-slate-200 px-4 dark:border-neutral-800">创建时间</th>
-                                    <th className="w-36 border-b border-slate-200 px-4 dark:border-neutral-800">操作</th>
+                                    <th className="whitespace-nowrap border-b border-slate-200 px-4 text-center dark:border-neutral-800" style={{ width: 52 }}>状态</th>
+                                    <th className="whitespace-nowrap border-b border-slate-200 px-4 dark:border-neutral-800" style={{ width: 100 }}>名称</th>
+                                    <th className="whitespace-nowrap border-b border-slate-200 px-4 dark:border-neutral-800">Key</th>
+                                    <th className="whitespace-nowrap border-b border-slate-200 px-4 dark:border-neutral-800" style={{ width: 90 }}>每日限制</th>
+                                    <th className="whitespace-nowrap border-b border-slate-200 px-4 dark:border-neutral-800" style={{ width: 90 }}>总配额</th>
+                                    <th className="whitespace-nowrap border-b border-slate-200 px-4 dark:border-neutral-800" style={{ width: 160 }}>可用模型</th>
+                                    <th className="whitespace-nowrap border-b border-slate-200 px-4 dark:border-neutral-800" style={{ width: 140 }}>创建时间</th>
+                                    <th className="whitespace-nowrap border-b border-slate-200 px-4 dark:border-neutral-800" style={{ width: 130 }}>操作</th>
                                 </tr>
                             </thead>
                             <tbody className="text-slate-900 dark:text-white">
@@ -521,8 +535,8 @@ export function ApiKeysPage() {
                                                 onClick={() => void handleToggleDisable(i)}
                                                 title={entry.disabled ? "点击启用" : "点击禁用"}
                                                 className={`inline-flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${entry.disabled
-                                                        ? "text-slate-400 hover:bg-red-50 hover:text-red-500 dark:text-white/30 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-                                                        : "text-emerald-500 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                                                    ? "text-slate-400 hover:bg-red-50 hover:text-red-500 dark:text-white/30 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                                                    : "text-emerald-500 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
                                                     }`}
                                             >
                                                 <Power size={15} />
@@ -540,7 +554,7 @@ export function ApiKeysPage() {
                                                 {maskKey(entry.key)}
                                             </code>
                                         </td>
-                                        <td className="border-b border-slate-100 px-4 align-middle text-slate-700 dark:border-neutral-900 dark:text-white/70">
+                                        <td className="whitespace-nowrap border-b border-slate-100 px-4 align-middle text-slate-700 dark:border-neutral-900 dark:text-white/70">
                                             <span className="inline-flex items-center gap-1">
                                                 {!entry["daily-limit"] ? (
                                                     <>
@@ -551,7 +565,7 @@ export function ApiKeysPage() {
                                                 )}
                                             </span>
                                         </td>
-                                        <td className="border-b border-slate-100 px-4 align-middle text-slate-700 dark:border-neutral-900 dark:text-white/70">
+                                        <td className="whitespace-nowrap border-b border-slate-100 px-4 align-middle text-slate-700 dark:border-neutral-900 dark:text-white/70">
                                             <span className="inline-flex items-center gap-1">
                                                 {!entry["total-quota"] ? (
                                                     <>
@@ -564,21 +578,22 @@ export function ApiKeysPage() {
                                         </td>
                                         <td className="border-b border-slate-100 px-4 align-middle text-slate-700 dark:border-neutral-900 dark:text-white/70">
                                             {entry["allowed-models"]?.length ? (
-                                                <div className="flex flex-wrap gap-1">
-                                                    {entry["allowed-models"].slice(0, 3).map((m) => (
-                                                        <span
-                                                            key={m}
-                                                            className="inline-block rounded-md bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300"
-                                                        >
-                                                            {m}
+                                                <HoverTooltip
+                                                    content={entry["allowed-models"].join(", ")}
+                                                    className="block min-w-0"
+                                                >
+                                                    <span className="inline-flex items-center gap-1.5 text-xs">
+                                                        <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-md bg-indigo-50 px-1.5 font-semibold tabular-nums text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                                            {entry["allowed-models"].length}
                                                         </span>
-                                                    ))}
-                                                    {entry["allowed-models"].length > 3 && (
-                                                        <span className="text-xs text-slate-400">+{entry["allowed-models"].length - 3}</span>
-                                                    )}
-                                                </div>
+                                                        <span className="max-w-[100px] truncate text-slate-500 dark:text-white/50">
+                                                            {entry["allowed-models"][0]}
+                                                            {entry["allowed-models"].length > 1 ? ` 等` : ""}
+                                                        </span>
+                                                    </span>
+                                                </HoverTooltip>
                                             ) : (
-                                                <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
+                                                <span className="inline-flex items-center gap-1 whitespace-nowrap text-green-600 dark:text-green-400">
                                                     <ShieldCheck size={14} /> 全部
                                                 </span>
                                             )}

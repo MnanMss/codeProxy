@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, X } from "lucide-react";
 
@@ -62,8 +62,8 @@ export function MultiSelect({
         return () => document.removeEventListener("mousedown", handler);
     }, [open]);
 
-    // Focus search on open + update position
-    useEffect(() => {
+    // Focus search on open + update position (useLayoutEffect to avoid flicker)
+    useLayoutEffect(() => {
         if (open) {
             updatePosition();
             if (searchRef.current) {
@@ -72,14 +72,15 @@ export function MultiSelect({
         }
     }, [open, updatePosition]);
 
-    // Update position on scroll/resize while open
+    // Update position on window scroll/resize while open
+    // Only listen at window level to avoid feedback loops with modal scroll containers
     useEffect(() => {
         if (!open) return;
         const onUpdate = () => updatePosition();
-        window.addEventListener("scroll", onUpdate, true);
+        window.addEventListener("scroll", onUpdate);
         window.addEventListener("resize", onUpdate);
         return () => {
-            window.removeEventListener("scroll", onUpdate, true);
+            window.removeEventListener("scroll", onUpdate);
             window.removeEventListener("resize", onUpdate);
         };
     }, [open, updatePosition]);
@@ -206,7 +207,11 @@ export function MultiSelect({
                 ref={triggerRef}
                 type="button"
                 disabled={disabled}
-                onClick={() => setOpen(!open)}
+                onClick={() => {
+                    // Pre-compute position before opening so the portal renders at the correct spot
+                    if (!open) updatePosition();
+                    setOpen(!open);
+                }}
                 className={`flex min-h-[38px] w-full items-center justify-between gap-2 rounded-xl border px-3 py-1.5 text-left text-sm transition-all ${disabled
                     ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white/40"
                     : open
