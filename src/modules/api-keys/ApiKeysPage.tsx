@@ -9,6 +9,7 @@ import {
     RefreshCw,
     Infinity,
     BarChart3,
+    Power,
 } from "lucide-react";
 import { apiKeyEntriesApi, apiKeysApi, type ApiKeyEntry } from "@/lib/http/apis/api-keys";
 import { usageApi } from "@/lib/http/apis";
@@ -19,6 +20,8 @@ import { EmptyState } from "@/modules/ui/EmptyState";
 import { useToast } from "@/modules/ui/ToastProvider";
 import { Modal } from "@/modules/ui/Modal";
 import { OverflowTooltip } from "@/modules/ui/Tooltip";
+import { MultiSelect, type MultiSelectOption } from "@/modules/ui/MultiSelect";
+import { apiClient } from "@/lib/http/client";
 
 /* ─── helpers ─── */
 
@@ -133,7 +136,7 @@ interface FormValues {
     key: string;
     dailyLimit: string;
     totalQuota: string;
-    allowedModels: string;
+    allowedModels: string[];
 }
 
 /* ─── component ─── */
@@ -151,13 +154,34 @@ export function ApiKeysPage() {
     const [saving, setSaving] = useState(false);
     const [usage, setUsage] = useState<UsageData>({ apis: {} });
     const [usageLoading, setUsageLoading] = useState(false);
+    const [availableModels, setAvailableModels] = useState<MultiSelectOption[]>([]);
     const [form, setForm] = useState<FormValues>({
         name: "",
         key: "",
         dailyLimit: "",
         totalQuota: "",
-        allowedModels: "",
+        allowedModels: [],
     });
+
+    /* ─── load models ─── */
+
+    const loadModels = useCallback(async () => {
+        try {
+            // Fetch from /v1/models endpoint (OpenAI format)
+            const data = await apiClient.get<{ data?: { id: string }[] }>("/v1/models", {
+                headers: { Authorization: "" }, // override management auth
+            }).catch(() => null);
+
+            if (data?.data) {
+                const opts: MultiSelectOption[] = data.data
+                    .map((m) => ({ value: m.id, label: m.id }))
+                    .sort((a, b) => a.label.localeCompare(b.label));
+                setAvailableModels(opts);
+            }
+        } catch {
+            // silent — models list is supplementary
+        }
+    }, []);
 
     /* ─── load ─── */
 
@@ -172,8 +196,8 @@ export function ApiKeysPage() {
             // Auto-migrate: old api-keys not in api-key-entries get added as unnamed entries
             const entryKeySet = new Set(entriesData.map((e) => e.key));
             const newEntries = legacyKeys
-                .filter((k) => k && !entryKeySet.has(k))
-                .map((k): ApiKeyEntry => ({ key: k, "created-at": new Date().toISOString() }));
+                .filter((k: string) => k && !entryKeySet.has(k))
+                .map((k: string): ApiKeyEntry => ({ key: k, "created-at": new Date().toISOString() }));
 
             if (newEntries.length > 0) {
                 const merged = [...entriesData, ...newEntries];
@@ -182,7 +206,6 @@ export function ApiKeysPage() {
                     setEntries(merged);
                     notify({ type: "success", message: `已自动导入 ${newEntries.length} 个旧 API Key` });
                 } catch {
-                    // If save fails, still show the merged list in-memory
                     setEntries(merged);
                 }
             } else {
@@ -201,7 +224,7 @@ export function ApiKeysPage() {
             const data = await usageApi.getUsage();
             setUsage(data);
         } catch {
-            // silent — usage is supplementary
+            // silent
         } finally {
             setUsageLoading(false);
         }
@@ -210,7 +233,28 @@ export function ApiKeysPage() {
     useEffect(() => {
         void loadEntries();
         void loadUsage();
-    }, [loadEntries, loadUsage]);
+        void loadModels();
+    }, [loadEntries, loadUsage, loadModels]);
+
+    /* ─── toggle disable ─── */
+
+    const handleToggleDisable = async (index: number) => {
+        const entry = entries[index];
+        const updated = { ...entry, disabled: !entry.disabled };
+        const newEntries = [...entries];
+        newEntries[index] = updated;
+
+        try {
+            await apiKeyEntriesApi.replace(newEntries);
+            setEntries(newEntries);
+            notify({
+                type: "success",
+                message: updated.disabled ? `已禁用「${entry.name || "未命名"}」` : `已启用「${entry.name || "未命名"}」`,
+            });
+        } catch (err: unknown) {
+            notify({ type: "error", message: err instanceof Error ? err.message : "操作失败" });
+        }
+    };
 
     /* ─── create ─── */
 
@@ -220,7 +264,7 @@ export function ApiKeysPage() {
             key: generateKey(),
             dailyLimit: "",
             totalQuota: "",
-            allowedModels: "",
+            allowedModels: [],
         });
         setShowCreate(true);
     };
@@ -241,9 +285,7 @@ export function ApiKeysPage() {
                 name: form.name.trim(),
                 "daily-limit": form.dailyLimit ? parseInt(form.dailyLimit, 10) || 0 : undefined,
                 "total-quota": form.totalQuota ? parseInt(form.totalQuota, 10) || 0 : undefined,
-                "allowed-models": form.allowedModels
-                    ? form.allowedModels.split(",").map((s) => s.trim()).filter(Boolean)
-                    : undefined,
+                "allowed-models": form.allowedModels.length > 0 ? form.allowedModels : undefined,
                 "created-at": new Date().toISOString(),
             };
             await apiKeyEntriesApi.replace([...entries, newEntry]);
@@ -266,7 +308,7 @@ export function ApiKeysPage() {
             key: entry.key,
             dailyLimit: entry["daily-limit"]?.toString() || "",
             totalQuota: entry["total-quota"]?.toString() || "",
-            allowedModels: entry["allowed-models"]?.join(", ") || "",
+            allowedModels: entry["allowed-models"] || [],
         });
         setEditIndex(index);
     };
@@ -285,9 +327,7 @@ export function ApiKeysPage() {
                     name: form.name.trim(),
                     "daily-limit": form.dailyLimit ? parseInt(form.dailyLimit, 10) || 0 : 0,
                     "total-quota": form.totalQuota ? parseInt(form.totalQuota, 10) || 0 : 0,
-                    "allowed-models": form.allowedModels
-                        ? form.allowedModels.split(",").map((s) => s.trim()).filter(Boolean)
-                        : [],
+                    "allowed-models": form.allowedModels.length > 0 ? form.allowedModels : [],
                 },
             });
             notify({ type: "success", message: "更新成功" });
@@ -415,14 +455,14 @@ export function ApiKeysPage() {
 
             <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-white/80">
-                    允许的模型（逗号分隔，留空 = 全部）
+                    允许的模型（不选 = 全部可用）
                 </label>
-                <input
-                    type="text"
+                <MultiSelect
+                    options={availableModels}
                     value={form.allowedModels}
-                    onChange={(e) => setForm((p) => ({ ...p, allowedModels: e.target.value }))}
-                    placeholder="gemini-*, claude-sonnet-4-*, gpt-4o"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white dark:focus:border-indigo-500"
+                    onChange={(selected) => setForm((p) => ({ ...p, allowedModels: selected }))}
+                    placeholder="选择模型..."
+                    emptyLabel="全部模型"
                 />
             </div>
         </div>
@@ -457,15 +497,16 @@ export function ApiKeysPage() {
                     />
                 ) : (
                     <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-neutral-800">
-                        <table className="w-full min-w-[900px] table-fixed border-separate border-spacing-0 text-sm">
+                        <table className="w-full min-w-[1000px] table-fixed border-separate border-spacing-0 text-sm">
                             <thead className="bg-white/95 backdrop-blur dark:bg-neutral-950/75">
                                 <tr className="h-11 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-white/55">
-                                    <th className="w-36 border-b border-slate-200 px-4 dark:border-neutral-800">名称</th>
-                                    <th className="w-56 border-b border-slate-200 px-4 dark:border-neutral-800">Key</th>
-                                    <th className="w-24 border-b border-slate-200 px-4 dark:border-neutral-800">每日限制</th>
-                                    <th className="w-24 border-b border-slate-200 px-4 dark:border-neutral-800">总配额</th>
+                                    <th className="w-16 border-b border-slate-200 px-4 text-center dark:border-neutral-800">状态</th>
+                                    <th className="w-32 border-b border-slate-200 px-4 dark:border-neutral-800">名称</th>
+                                    <th className="w-52 border-b border-slate-200 px-4 dark:border-neutral-800">Key</th>
+                                    <th className="w-20 border-b border-slate-200 px-4 dark:border-neutral-800">每日限制</th>
+                                    <th className="w-20 border-b border-slate-200 px-4 dark:border-neutral-800">总配额</th>
                                     <th className="w-44 border-b border-slate-200 px-4 dark:border-neutral-800">可用模型</th>
-                                    <th className="w-40 border-b border-slate-200 px-4 dark:border-neutral-800">创建时间</th>
+                                    <th className="w-36 border-b border-slate-200 px-4 dark:border-neutral-800">创建时间</th>
                                     <th className="w-36 border-b border-slate-200 px-4 dark:border-neutral-800">操作</th>
                                 </tr>
                             </thead>
@@ -473,8 +514,20 @@ export function ApiKeysPage() {
                                 {entries.map((entry, i) => (
                                     <tr
                                         key={entry.key}
-                                        className="h-10 transition hover:bg-slate-50/70 dark:hover:bg-white/5"
+                                        className={`h-10 transition ${entry.disabled ? "opacity-50" : ""} hover:bg-slate-50/70 dark:hover:bg-white/5`}
                                     >
+                                        <td className="border-b border-slate-100 px-4 text-center align-middle dark:border-neutral-900">
+                                            <button
+                                                onClick={() => void handleToggleDisable(i)}
+                                                title={entry.disabled ? "点击启用" : "点击禁用"}
+                                                className={`inline-flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${entry.disabled
+                                                        ? "text-slate-400 hover:bg-red-50 hover:text-red-500 dark:text-white/30 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                                                        : "text-emerald-500 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                                                    }`}
+                                            >
+                                                <Power size={15} />
+                                            </button>
+                                        </td>
                                         <td className="border-b border-slate-100 px-4 align-middle font-medium dark:border-neutral-900">
                                             <OverflowTooltip content={entry.name || "未命名"} className="block min-w-0">
                                                 <span className="block min-w-0 truncate">

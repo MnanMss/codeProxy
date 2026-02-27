@@ -3,6 +3,7 @@ import { apiClient } from "@/lib/http/client";
 export interface ApiKeyEntry {
   key: string;
   name?: string;
+  disabled?: boolean;
   "daily-limit"?: number;
   "total-quota"?: number;
   "allowed-models"?: string[];
