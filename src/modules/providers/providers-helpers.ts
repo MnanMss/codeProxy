@@ -80,6 +80,7 @@ export const normalizeDiscoveredModels = (
 };
 
 export type ProviderKeyDraft = {
+  name: string;
   apiKey: string;
   prefix: string;
   baseUrl: string;
@@ -134,6 +135,7 @@ export const commitModelEntries = (
 };
 
 export const buildProviderKeyDraft = (input?: ProviderSimpleConfig | null): ProviderKeyDraft => ({
+  name: input?.name ?? "",
   apiKey: input?.apiKey ?? "",
   prefix: input?.prefix ?? "",
   baseUrl: input?.baseUrl ?? "",
@@ -169,11 +171,11 @@ export const buildOpenAIDraft = (input?: OpenAIProvider | null): OpenAIDraft => 
   apiKeyEntries:
     Array.isArray(input?.apiKeyEntries) && input.apiKeyEntries.length
       ? input.apiKeyEntries.map((entry, idx) => ({
-          id: `key-${idx}-${entry.apiKey}`,
-          apiKey: entry.apiKey ?? "",
-          proxyUrl: entry.proxyUrl ?? "",
-          headersEntries: recordToKeyValueEntries(entry.headers),
-        }))
+        id: `key-${idx}-${entry.apiKey}`,
+        apiKey: entry.apiKey ?? "",
+        proxyUrl: entry.proxyUrl ?? "",
+        headersEntries: recordToKeyValueEntries(entry.headers),
+      }))
       : [{ id: `key-${Date.now()}`, apiKey: "", proxyUrl: "", headersEntries: [] }],
   modelEntries: buildModelEntries(input?.models),
 });

@@ -254,6 +254,7 @@ export function ProvidersPage() {
 
     const result: ProviderSimpleConfig = {
       apiKey,
+      ...(keyDraft.name.trim() ? { name: keyDraft.name.trim() } : {}),
       ...(keyDraft.prefix.trim() ? { prefix: keyDraft.prefix.trim() } : {}),
       ...(keyDraft.baseUrl.trim() ? { baseUrl: keyDraft.baseUrl.trim() } : {}),
       ...(keyDraft.proxyUrl.trim() ? { proxyUrl: keyDraft.proxyUrl.trim() } : {}),
@@ -1175,6 +1176,24 @@ export function ProvidersPage() {
                 Vertex：需要 alias
               </span>
             ) : null}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/60">
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">
+              渠道名称（必填）
+            </p>
+            <div className="mt-2">
+              <TextInput
+                value={keyDraft.name}
+                onChange={(e) =>
+                  setKeyDraft((prev) => ({ ...prev, name: e.currentTarget.value }))
+                }
+                placeholder="例如：Gemini 主力渠道"
+              />
+            </div>
+            <p className="mt-2 text-xs text-slate-500 dark:text-white/55">
+              用于在列表中区分不同渠道，建议填写易于辨认的名称。
+            </p>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/60">
