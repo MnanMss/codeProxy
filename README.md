@@ -1,81 +1,173 @@
-# Code Proxy 前端管理后台（首版）
+<p align="center">
+  <img src="https://img.shields.io/badge/React-19.2-61DAFB?style=for-the-badge&logo=react&logoColor=white" alt="React" />
+  <img src="https://img.shields.io/badge/Vite-7.3-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
+  <img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-4.1-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/Bun-1.2-FBF0DF?style=for-the-badge&logo=bun&logoColor=black" alt="Bun" />
+</p>
 
-基于 `React 19.2 + Vite + Bun + Tailwind CSS v4 + oxlint + oxfmt` 的后台项目。
+<h1 align="center">🖥️ Code Proxy · Admin Dashboard</h1>
 
-当前默认入口为你自研的 Tailwind 后台（`index.html` + `src/main.tsx` + `src/app/AppRouter.tsx`）。
+<p align="center">
+  <strong>The official frontend management panel for <a href="https://github.com/kittors/CliRelay">CliRelay (CLI Proxy API)</a></strong>
+</p>
 
-当前已完成（业务功能对齐进行中）：
+<p align="center">
+  <em>Monitor, manage, and configure your CLI proxy channels — all from a modern web UI.</em>
+</p>
 
-- 登录页（支持 API 地址与管理密钥登录）
-- 鉴权守卫与会话恢复
-- 后台布局（侧边栏 + 顶栏）
-- 仪表盘（概览 + 快捷入口）
-- 监控中心（KPI + 渠道统计 + 模型统计 + usage 快照导入/导出）
-- 系统信息（连接/版本信息 + `/v1/models` 模型列表）
-- 与参考项目一致的管理 API 前缀：`/v0/management`
+<p align="center">
+  <a href="https://github.com/kittors/codeProxy/stargazers"><img src="https://img.shields.io/github/stars/kittors/codeProxy?style=flat-square&color=f5a623" alt="Stars" /></a>
+  <a href="https://github.com/kittors/codeProxy/network/members"><img src="https://img.shields.io/github/forks/kittors/codeProxy?style=flat-square&color=4a90d9" alt="Forks" /></a>
+  <a href="https://github.com/kittors/codeProxy/issues"><img src="https://img.shields.io/github/issues/kittors/codeProxy?style=flat-square&color=e74c3c" alt="Issues" /></a>
+  <a href="https://github.com/kittors/codeProxy/blob/main/LICENSE"><img src="https://img.shields.io/github/license/kittors/codeProxy?style=flat-square&color=27ae60" alt="License" /></a>
+</p>
 
-说明：
+---
 
-- 参考项目代码（`src/pages/`、`src/components/`、`src/services/`、`src/stores/`、`src/i18n/` 等）目前仅作为“功能对齐参考”，不会替换你现有 UI 入口。
+## ✨ Overview
 
-## 启动
+**Code Proxy** is the official web-based admin panel for [**CliRelay**](https://github.com/kittors/CliRelay) — a proxy server that wraps Gemini CLI, Antigravity, ChatGPT Codex, Claude Code, Qwen Code, and iFlow as OpenAI/Gemini/Claude compatible API services.
+
+This dashboard lets you:
+
+- 🔐 **Login** with your API address and management key
+- 📊 **Monitor** real-time KPI metrics, channel statistics, and model usage
+- 🔗 **Manage** proxy channels (OpenAI, Gemini, Claude, Codex, Vertex, etc.)
+- 📦 **Import/Export** usage snapshots for backup and migration
+- ℹ️ **Inspect** system info, connection status, and available models
+
+## 🧩 Features
+
+| Feature | Description |
+|---------|-------------|
+| **Dashboard** | Overview cards with quick-access shortcuts to all management modules |
+| **Monitor Center** | KPI metrics, channel distribution charts, model usage analytics |
+| **System Info** | Connection status, version info, `/v1/models` model listing |
+| **Auth Guard** | Session persistence with automatic token restoration |
+| **Usage Snapshots** | Import & export usage data in JSON format |
+| **Dark Mode** | Built-in dark theme with smooth transitions |
+| **i18n Ready** | Internationalization support via i18next |
+
+## 🛠️ Tech Stack
+
+| Category | Technology |
+|----------|------------|
+| **Framework** | React 19.2 + TypeScript 5.9 |
+| **Build Tool** | Vite 7.3 |
+| **Package Manager** | Bun 1.2 |
+| **Styling** | Tailwind CSS v4 |
+| **State Management** | Zustand |
+| **Charts** | ECharts + Chart.js |
+| **Animations** | Framer Motion + GSAP |
+| **Routing** | React Router v7 |
+| **Linting** | oxlint + oxfmt |
+| **Testing** | Vitest + Playwright (E2E) |
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- [Bun](https://bun.sh/) ≥ 1.2 (or Node.js ≥ 18)
+- A running [CliRelay](https://github.com/kittors/CliRelay) backend instance
+
+### Install & Run
 
 ```bash
+# Clone the repository
+git clone https://github.com/kittors/codeProxy.git
+cd codeProxy
+
+# Install dependencies
 bun install
+
+# Start dev server
 bun run dev
 ```
 
-开发时可直接访问：
+The dashboard will be available at **http://localhost:5173/**
 
-- 业务管理后台（默认入口）：`http://localhost:5173/`
-
-## 构建与检查
+### Build for Production
 
 ```bash
+# Lint & format
 bun run lint
 bun run format
+
+# Type-check & build
 bun run build
+
+# Preview production build
+bun run preview
 ```
 
-## 目录结构
+### Run Tests
 
-```text
+```bash
+# Unit tests
+bun run test
+
+# E2E tests
+bun run e2e
+```
+
+## 📁 Project Structure
+
+```
 src/
-  app/               # 路由与守卫
-  lib/               # 常量、连接处理、HTTP 客户端与 API
-  modules/
-    auth/            # 鉴权 Provider
-    dashboard/       # 仪表盘
-    layout/          # 后台布局
-    login/           # 登录页
-    monitor/         # 监控中心
-    system/          # 系统信息
-    ui/              # 复合 UI 容器
-    usage/           # 用量统计（当前复用监控视图）
-  styles/            # 全局样式与主题变量
-  # 参考项目业务功能（上游移植代码，仅用于对齐参考）
-  assets/
-  components/
-  features/
-  hooks/
-  i18n/
-  pages/
-  router/
-  services/
-  stores/
-  types/
-  utils/
-  management.tsx     # 历史多入口脚本（默认不再构建产物）
+├── app/                 # Routing & auth guards
+├── lib/                 # Constants, HTTP client, API layer
+├── modules/
+│   ├── auth/            # Authentication provider
+│   ├── dashboard/       # Dashboard overview
+│   ├── layout/          # App shell (sidebar + topbar)
+│   ├── login/           # Login page
+│   ├── monitor/         # Monitoring center
+│   ├── system/          # System information
+│   ├── ui/              # Shared UI containers
+│   └── usage/           # Usage statistics
+└── styles/              # Global styles & theme tokens
 ```
 
-## 接口对齐说明
+## 🔌 API Integration
 
-- API 基址自动规范为：`{apiBase}/v0/management`
-- 登录校验：`GET /config`
-- 监控数据：`GET /usage`
-- 渠道映射：
-  - `GET /openai-compatibility`
-  - `GET /gemini-api-key`
-  - `GET /claude-api-key`
-  - `GET /codex-api-key`
-  - `GET /vertex-api-key`
+This dashboard communicates with the CliRelay backend via the Management API:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v0/management/config` | `GET` | Verify login & fetch configuration |
+| `/v0/management/usage` | `GET` | Retrieve usage statistics |
+| `/v0/management/openai-compatibility` | `GET` | OpenAI channel mapping |
+| `/v0/management/gemini-api-key` | `GET` | Gemini channel mapping |
+| `/v0/management/claude-api-key` | `GET` | Claude channel mapping |
+| `/v0/management/codex-api-key` | `GET` | Codex channel mapping |
+| `/v0/management/vertex-api-key` | `GET` | Vertex channel mapping |
+
+> **Note:** The API base is automatically normalized to `{apiBase}/v0/management`
+
+For full backend API documentation, see the [CliRelay Management API](https://help.router-for.me/management/api).
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 Related Projects
+
+- **[CliRelay](https://github.com/kittors/CliRelay)** — The backend proxy server (Go)
+- **[CliRelay Guides](https://help.router-for.me/)** — Official documentation
+
+## 📝 License
+
+This project is open source. See the [LICENSE](LICENSE) file for details.
+
+---
+
+<p align="center">
+  Made with ❤️ for the <a href="https://github.com/kittors/CliRelay">CliRelay</a> community
+</p>
