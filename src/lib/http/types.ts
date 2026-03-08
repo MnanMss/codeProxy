@@ -162,3 +162,170 @@ export interface ApiCallResult<T = unknown> {
   bodyText: string;
   body: T | null;
 }
+
+export const CODEX_MANAGER_DEFAULT_PAGE = 1;
+export const CODEX_MANAGER_DEFAULT_PAGE_SIZE = 20;
+export const CODEX_MANAGER_MAX_PAGE_SIZE = 100;
+
+export interface CodexManagerEnvelope<T = unknown> {
+  ok: boolean;
+  code: string;
+  message: string;
+  retryable: boolean;
+  data: T;
+}
+
+export type CodexManagerRuntimeSource = "codex_manager" | string;
+
+export type CodexManagerLoginFlowStatus =
+  | "in_progress"
+  | "success"
+  | "failed"
+  | "cancelled"
+  | "timed_out"
+  | "unknown"
+  | string;
+
+export interface CodexManagerListParams {
+  page?: number;
+  pageSize?: number;
+  query?: string;
+}
+
+export interface CodexManagerUsageSummary {
+  availabilityStatus: string;
+  usedPercent?: number | null;
+  windowMinutes?: number | null;
+  capturedAt?: string | null;
+}
+
+export interface CodexManagerUsageSnapshot {
+  accountId?: string | null;
+  availabilityStatus?: string | null;
+  usedPercent?: number | null;
+  windowMinutes?: number | null;
+  resetsAt?: number | null;
+  secondaryUsedPercent?: number | null;
+  secondaryWindowMinutes?: number | null;
+  secondaryResetsAt?: number | null;
+  capturedAt?: number | null;
+}
+
+export interface CodexManagerAccount {
+  accountId: string;
+  label: string;
+  groupName: string;
+  status: string;
+  sort: number;
+  relayEnabled: boolean;
+  runtimeSource: CodexManagerRuntimeSource;
+  runtimeIncluded: boolean;
+  usageSummary: CodexManagerUsageSummary | null;
+  lastSyncedAt: string | null;
+  stale: boolean;
+}
+
+export interface CodexManagerAccountDetail extends CodexManagerAccount {
+  usageSnapshot: CodexManagerUsageSnapshot | null;
+}
+
+export interface CodexManagerAccountUsage {
+  accountId: string;
+  usageSummary: CodexManagerUsageSummary | null;
+  snapshot: CodexManagerUsageSnapshot | null;
+}
+
+export interface CodexManagerAccountListData {
+  items: CodexManagerAccount[];
+  total: number;
+  page: number;
+  pageSize: number;
+  maxPageSize: number;
+}
+
+export interface CodexManagerLoginStartPayload {
+  type?: string;
+  openBrowser?: boolean;
+  note?: string;
+  tags?: string;
+  groupName?: string;
+  workspaceId?: string;
+}
+
+export interface CodexManagerDeviceAuthInfo {
+  userCodeUrl: string;
+  tokenUrl: string;
+  verificationUrl: string;
+  redirectUri: string;
+}
+
+export interface CodexManagerLoginStartData {
+  loginId: string;
+  authUrl: string;
+  loginType: string;
+  issuer: string;
+  clientId: string;
+  redirectUri: string;
+  warning: string | null;
+  device: CodexManagerDeviceAuthInfo | null;
+}
+
+export interface CodexManagerLoginStatusData {
+  loginId: string;
+  status: CodexManagerLoginFlowStatus;
+  upstreamStatus: string;
+  terminal: boolean;
+  error: string | null;
+  updatedAt: string | null;
+}
+
+export interface CodexManagerLoginCompletePayload {
+  state: string;
+  code: string;
+  redirectUri?: string;
+}
+
+export interface CodexManagerLoginCompleteData {
+  status: CodexManagerLoginFlowStatus;
+  completed: boolean;
+}
+
+export interface CodexManagerImportPayload {
+  contents?: string[];
+  content?: string;
+}
+
+export interface CodexManagerImportError {
+  index: number;
+  message: string;
+}
+
+export interface CodexManagerImportData {
+  total: number;
+  created: number;
+  updated: number;
+  failed: number;
+  errors: CodexManagerImportError[];
+}
+
+export interface CodexManagerDeleteData {
+  accountId: string;
+  removed: boolean;
+  alreadyRemoved: boolean;
+  notFoundButHandled: boolean;
+}
+
+export interface CodexManagerUsageRefreshBatchItem {
+  accountId: string;
+  success: boolean;
+  reason: string | null;
+  usageSummary: CodexManagerUsageSummary | null;
+  snapshot: CodexManagerUsageSnapshot | null;
+}
+
+export interface CodexManagerUsageRefreshBatchData {
+  items: CodexManagerUsageRefreshBatchItem[];
+  total: number;
+  successCount: number;
+  failedCount: number;
+}

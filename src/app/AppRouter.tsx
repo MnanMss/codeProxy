@@ -16,6 +16,7 @@ import { SystemPage } from "@/modules/system/SystemPage";
 import { ApiKeysPage } from "@/modules/api-keys/ApiKeysPage";
 import { ModelsPage } from "@/modules/models/ModelsPage";
 import { ApiKeyLookupPage } from "@/modules/apikey-lookup/ApiKeyLookupPage";
+import { CodexManagerPage } from "@/modules/codex-manager/CodexManagerPage";
 import { ThemeProvider } from "@/modules/ui/ThemeProvider";
 import { ToastProvider } from "@/modules/ui/ToastProvider";
 
@@ -53,7 +54,8 @@ export function AppRouter() {
                   <Route path="/settings" element={<Navigate to="/config" replace />} />
                   <Route path="/api-keys" element={<ApiKeysPage />} />
                   <Route path="/models" element={<ModelsPage />} />
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/codex-manager" element={<CodexManagerPage />} />
+<Route path="/" element={<Navigate to="/dashboard" replace />} />
                 </Route>
               </Route>
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

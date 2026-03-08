@@ -24,6 +24,7 @@ import {
   ScrollText,
   Settings,
   Sparkles,
+  Terminal,
 } from "lucide-react";
 import { useAuth } from "@/modules/auth/AuthProvider";
 import { PageBackground } from "@/modules/ui/PageBackground";
@@ -50,6 +51,7 @@ const NAV_ITEMS = [
   { to: "/oauth", label: "OAuth登录", icon: KeyRound },
   { to: "/api-keys", label: "API Keys", icon: Sparkles },
   { to: "/models", label: "模型管理", icon: Cpu },
+  { to: "/codex-manager", label: "Codex 管理", icon: Terminal },
   { to: "/quota", label: "配额管理", icon: Coins },
   { to: "/config", label: "配置面板", icon: Settings },
   { to: "/system", label: "系统信息", icon: Info },
@@ -77,6 +79,9 @@ const getPageTitle = (pathname: string): string => {
   }
   if (pathname.startsWith("/quota")) {
     return "配额管理";
+  }
+  if (pathname.startsWith("/codex-manager")) {
+    return "Codex 管理";
   }
   if (pathname.startsWith("/api-keys")) {
     return "API Keys 管理";
@@ -139,6 +144,7 @@ function ShellSidebar({ collapsed }: { collapsed: boolean }) {
                 key={item.to}
                 to={item.to}
                 viewTransition
+                data-testid={item.to === "/codex-manager" ? "codex-manager-nav" : undefined}
                 className={
                   active
                     ? "flex min-w-0 items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white dark:bg-white dark:text-neutral-950 whitespace-nowrap"

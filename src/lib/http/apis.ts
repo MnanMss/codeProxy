@@ -5,6 +5,7 @@ export { configFileApi } from "./apis/config-file";
 export { logsApi } from "./apis/logs";
 export { oauthApi } from "./apis/oauth";
 export { authFilesApi } from "./apis/auth-files";
+export { codexManagerApi } from "./apis/codex-manager";
 export { apiCallApi, getApiCallErrorMessage } from "./apis/api-call";
 export { ampcodeApi } from "./apis/ampcode";
 export { vertexApi } from "./apis/vertex";

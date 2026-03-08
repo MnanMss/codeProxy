@@ -12,6 +12,7 @@
 - `src/app/`：路由与守卫
 - `src/lib/`：常量、连接处理、HTTP 客户端与 API
 - `src/modules/auth/`：鉴权 Provider
+- `src/modules/codex-manager/`：Codex 管理独立模块（页面、数据 hooks、动作流、额度查看、Relay 控制、测试）
 - `src/modules/dashboard/`：仪表盘
 - `src/modules/layout/`：后台布局
 - `src/modules/login/`：登录页
@@ -74,7 +75,7 @@
 - 安装依赖：`bun install`
 - 开发启动：`bun run dev`
 - 构建：`bun run build`
-- 测试：暂无（当前仓库未配置测试脚本/用例）
+- 测试：`bun run test`（Vitest），`bun run e2e`（Playwright）
 - Lint：`bun run lint`
 - 格式化：`bun run format`
 - 格式化检查（CI 友好，如有）：`bunx oxfmt . --check`
@@ -85,6 +86,9 @@
 - 应用入口：`src/main.tsx`
 - 历史多入口脚本：`src/management.tsx`（默认不再构建产物）
 - 主要模块目录：`src/`
+- Codex-Manager 模块：`src/modules/codex-manager/`（页面、hooks、测试）
+- Codex-Manager 页面：`src/modules/codex-manager/CodexManagerPage.tsx`
+- Codex-Manager API client：`src/lib/http/apis/codex-manager.ts`
 - 关键配置文件：`package.json`, `tsconfig.json`, `vite.config.ts`
 - 入口文件：`index.html`（默认构建）
 

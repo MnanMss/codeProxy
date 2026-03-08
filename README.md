@@ -43,6 +43,7 @@ This dashboard lets you:
 |---------|-------------|
 | **Dashboard** | Overview cards with quick-access shortcuts to all management modules |
 | **Monitor Center** | KPI metrics, channel distribution charts, model usage analytics |
+| **Codex Manager** | Manage Codex accounts, usage, login and import flows, and relay state |
 | **System Info** | Connection status, version info, `/v1/models` model listing |
 | **Auth Guard** | Session persistence with automatic token restoration |
 | **Usage Snapshots** | Import & export usage data in JSON format |
@@ -130,6 +131,7 @@ src/
 ├── lib/                 # Constants, HTTP client, API layer
 ├── modules/
 │   ├── auth/            # Authentication provider
+│   ├── codex-manager/   # Codex manager page, hooks, usage, and relay actions
 │   ├── dashboard/       # Dashboard overview
 │   ├── layout/          # App shell (sidebar + topbar)
 │   ├── login/           # Login page
@@ -152,9 +154,21 @@ This dashboard communicates with the CliRelay backend via the Management API:
 | `/v0/management/gemini-api-key` | `GET` | Gemini channel mapping |
 | `/v0/management/claude-api-key` | `GET` | Claude channel mapping |
 | `/v0/management/codex-api-key` | `GET` | Codex channel mapping |
+| `/v0/management/codex-manager/accounts` | `GET` | List Codex accounts with pagination and query |
+| `/v0/management/codex-manager/accounts/:accountId` | `GET` | Retrieve Codex account detail |
+| `/v0/management/codex-manager/usage` | `GET` | List Codex usage summaries |
+| `/v0/management/codex-manager/accounts/:accountId/usage` | `GET` | Retrieve single-account usage detail |
+| `/v0/management/codex-manager/accounts/:accountId/usage/refresh` | `POST` | Refresh single-account usage |
+| `/v0/management/codex-manager/usage/refresh-batch` | `POST` | Refresh selected accounts in batch |
+| `/v0/management/codex-manager/login/start` | `POST` | Start Codex OAuth login |
+| `/v0/management/codex-manager/login/status/:loginId` | `GET` | Poll Codex login status |
+| `/v0/management/codex-manager/login/complete` | `POST` | Complete Codex login with state and code |
+| `/v0/management/codex-manager/import` | `POST` | Import Codex accounts from JSON or text |
+| `/v0/management/codex-manager/accounts/:accountId` | `DELETE` | Delete a managed Codex account |
+| `/v0/management/codex-manager/accounts/:accountId/relay-state` | `PATCH` | Toggle relay inclusion for a Codex account |
 | `/v0/management/vertex-api-key` | `GET` | Vertex channel mapping |
 
-> **Note:** The API base is automatically normalized to `{apiBase}/v0/management`
+> **Note:** The API base is automatically normalized to `{apiBase}/v0/management`, and the Codex manager client calls `/codex-manager/*` under that prefix.
 
 For full backend API documentation, see the [CliRelay Management API](https://help.router-for.me/management/api).
 
