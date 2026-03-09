@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/http/client";
+import { normalizeCodexManagerImportContents } from "@/lib/http/apis/codex-manager-import";
 import { isRecord, normalizeString } from "@/lib/http/apis/helpers";
 import {
   CODEX_MANAGER_DEFAULT_PAGE,
@@ -9,7 +10,9 @@ import {
   type CodexManagerAccountListData,
   type CodexManagerAccountUsage,
   type CodexManagerDeleteData,
+  type CodexManagerDeleteUnavailableData,
   type CodexManagerEnvelope,
+  type CodexManagerExportData,
   type CodexManagerImportData,
   type CodexManagerImportPayload,
   type CodexManagerListParams,
@@ -42,7 +45,8 @@ const normalizeRequiredString = (value: unknown, fieldName: string): string => {
   throw new Error(`${fieldName} 不能为空`);
 };
 
-const normalizeOptionalString = (value: unknown): string | undefined => normalizeString(value) ?? undefined;
+const normalizeOptionalString = (value: unknown): string | undefined =>
+  normalizeString(value) ?? undefined;
 
 const normalizeListParams = (params?: CodexManagerListParams) => ({
   page: normalizePositiveInt(params?.page, CODEX_MANAGER_DEFAULT_PAGE),
@@ -54,7 +58,9 @@ const normalizeListParams = (params?: CodexManagerListParams) => ({
   query: normalizeOptionalString(params?.query),
 });
 
-const createEmptyAccountListData = (params?: CodexManagerListParams): CodexManagerAccountListData => {
+const createEmptyAccountListData = (
+  params?: CodexManagerListParams,
+): CodexManagerAccountListData => {
   const normalized = normalizeListParams(params);
   return {
     items: [],
@@ -90,17 +96,6 @@ const unwrapCodexManagerEnvelope = <T>(
   if (fallback !== undefined) return fallback;
   if (requireData) throw new Error(message);
   return payload as T;
-};
-
-const normalizeImportPayload = (payload: CodexManagerImportPayload): { contents: string[] } => {
-  const contents = [
-    ...(Array.isArray(payload.contents) ? payload.contents : []),
-    ...(typeof payload.content === "string" ? [payload.content] : []),
-  ]
-    .map((item) => String(item ?? "").trim())
-    .filter(Boolean);
-
-  return { contents };
 };
 
 const normalizeAccountIds = (accountIds: string[]) => {
@@ -141,7 +136,9 @@ const normalizeLoginStartPayload = (payload: CodexManagerLoginStartPayload = {})
 };
 
 export const codexManagerApi = {
-  listAccounts: async (params: CodexManagerListParams = {}): Promise<CodexManagerAccountListData> => {
+  listAccounts: async (
+    params: CodexManagerListParams = {},
+  ): Promise<CodexManagerAccountListData> => {
     const normalized = normalizeListParams(params);
     const response = await apiClient.get<unknown>(`${CODEX_MANAGER_API_BASE}/accounts`, {
       params: {
@@ -210,9 +207,12 @@ export const codexManagerApi = {
   },
 
   refreshUsageBatch: async (accountIds: string[]): Promise<CodexManagerUsageRefreshBatchData> => {
-    const response = await apiClient.post<unknown>(`${CODEX_MANAGER_API_BASE}/usage/refresh-batch`, {
-      accountIds: normalizeAccountIds(accountIds),
-    });
+    const response = await apiClient.post<unknown>(
+      `${CODEX_MANAGER_API_BASE}/usage/refresh-batch`,
+      {
+        accountIds: normalizeAccountIds(accountIds),
+      },
+    );
 
     return unwrapCodexManagerEnvelope(response, {
       message: "批量刷新 Codex 用量失败",
@@ -220,7 +220,9 @@ export const codexManagerApi = {
     });
   },
 
-  startLogin: async (payload: CodexManagerLoginStartPayload = {}): Promise<CodexManagerLoginStartData> => {
+  startLogin: async (
+    payload: CodexManagerLoginStartPayload = {},
+  ): Promise<CodexManagerLoginStartData> => {
     const response = await apiClient.post<unknown>(
       `${CODEX_MANAGER_API_BASE}/login/start`,
       normalizeLoginStartPayload(payload),
@@ -260,13 +262,26 @@ export const codexManagerApi = {
   },
 
   importAccounts: async (payload: CodexManagerImportPayload): Promise<CodexManagerImportData> => {
-    const response = await apiClient.post<unknown>(
-      `${CODEX_MANAGER_API_BASE}/import`,
-      normalizeImportPayload(payload),
-    );
+    const response = await apiClient.post<unknown>(`${CODEX_MANAGER_API_BASE}/import`, {
+      contents: normalizeCodexManagerImportContents(payload),
+    });
 
     return unwrapCodexManagerEnvelope(response, {
       message: "导入 Codex 账号失败",
+      requireData: true,
+    });
+  },
+
+  exportAccounts: async (): Promise<CodexManagerExportData> =>
+    apiClient.getBlob(`${CODEX_MANAGER_API_BASE}/export`),
+
+  deleteUnavailableAccounts: async (): Promise<CodexManagerDeleteUnavailableData> => {
+    const response = await apiClient.post<unknown>(
+      `${CODEX_MANAGER_API_BASE}/accounts/free/delete-unavailable`,
+    );
+
+    return unwrapCodexManagerEnvelope(response, {
+      message: "清理不可用免费 Codex 账号失败",
       requireData: true,
     });
   },

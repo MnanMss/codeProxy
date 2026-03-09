@@ -308,11 +308,25 @@ export interface CodexManagerImportData {
   errors: CodexManagerImportError[];
 }
 
+export type CodexManagerExportData = Blob;
+
 export interface CodexManagerDeleteData {
   accountId: string;
   removed: boolean;
   alreadyRemoved: boolean;
   notFoundButHandled: boolean;
+}
+
+export interface CodexManagerDeleteUnavailableData {
+  scanned: number;
+  deleted: number;
+  skippedAvailable: number;
+  skippedNonFree: number;
+  skippedMissingUsage: number;
+  skippedMissingToken: number;
+  deletedAccountIds: string[];
+  localCredentialsRemoved: number;
+  localProjectionsTombstoned: number;
 }
 
 export interface CodexManagerUsageRefreshBatchItem {

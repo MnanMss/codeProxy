@@ -20,6 +20,13 @@ const jsonResponse = (body: unknown, init?: ResponseInit) =>
     ...init,
   });
 
+const blobResponse = (body: BlobPart, init?: ResponseInit) =>
+  new Response(body, {
+    status: 200,
+    headers: { "Content-Type": "application/zip" },
+    ...init,
+  });
+
 const emptyResponse = (status = 204) => new Response(null, { status });
 
 const lastRequest = () => {
@@ -71,7 +78,11 @@ describe("codexManagerApi", () => {
       ),
     );
 
-    const result = await codexManagerApi.listAccounts({ page: 0, pageSize: 999, query: "  team-a  " });
+    const result = await codexManagerApi.listAccounts({
+      page: 0,
+      pageSize: 999,
+      query: "  team-a  ",
+    });
 
     expect(result.items[0]?.accountId).toBe("acc-alpha");
     expect("authIndex" in result.items[0] || "auth_index" in result.items[0]).toBe(false);
@@ -81,7 +92,9 @@ describe("codexManagerApi", () => {
       "http://127.0.0.1:8317/v0/management/codex-manager/accounts?page=1&pageSize=100&query=team-a",
     );
     expect(request.init.method).toBeUndefined();
-    expect(new Headers(request.init.headers).get("Authorization")).toBe("Bearer test-management-key");
+    expect(new Headers(request.init.headers).get("Authorization")).toBe(
+      "Bearer test-management-key",
+    );
   });
 
   test("getAccount and getAccountUsage call account-scoped GET endpoints", async () => {
@@ -118,7 +131,9 @@ describe("codexManagerApi", () => {
     expect(detail.accountId).toBe("acc-alpha");
 
     let request = lastRequest();
-    expect(request.url).toBe("http://127.0.0.1:8317/v0/management/codex-manager/accounts/acc-alpha");
+    expect(request.url).toBe(
+      "http://127.0.0.1:8317/v0/management/codex-manager/accounts/acc-alpha",
+    );
 
     const usage = await codexManagerApi.getAccountUsage("acc-alpha");
     expect(usage.snapshot?.accountId).toBe("acc-alpha");
@@ -183,7 +198,9 @@ describe("codexManagerApi", () => {
     expect(request.url).toBe(
       "http://127.0.0.1:8317/v0/management/codex-manager/usage/refresh-batch",
     );
-    expect(JSON.parse(String(request.init.body))).toEqual({ accountIds: ["acc-alpha", "acc-bravo"] });
+    expect(JSON.parse(String(request.init.body))).toEqual({
+      accountIds: ["acc-alpha", "acc-bravo"],
+    });
   });
 
   test("login methods call the correct paths and payloads", async () => {
@@ -214,9 +231,7 @@ describe("codexManagerApi", () => {
           }),
         ),
       )
-      .mockResolvedValueOnce(
-        jsonResponse(createEnvelope({ status: "success", completed: true })),
-      );
+      .mockResolvedValueOnce(jsonResponse(createEnvelope({ status: "success", completed: true })));
 
     await codexManagerApi.startLogin({
       type: " device ",
@@ -262,7 +277,7 @@ describe("codexManagerApi", () => {
     });
   });
 
-  test("importAccounts, deleteAccount, and setRelayState use stable payload fields", async () => {
+  test("importAccounts normalizes mixed legacy file contents before upload", async () => {
     fetchMock
       .mockResolvedValueOnce(
         jsonResponse(createEnvelope({ total: 2, created: 1, updated: 1, failed: 0, errors: [] })),
@@ -296,22 +311,67 @@ describe("codexManagerApi", () => {
       );
 
     await codexManagerApi.importAccounts({
-      contents: ["  {\"auth\":1}  ", ""],
-      content: "  {\"auth\":2}  ",
+      contents: [
+        '  {"label":"Legacy Flat","access_token":"access-1","idToken":"id-1","refreshToken":"refresh-1","chatgpt_account_id":"acc-legacy"}  ',
+        '  [{"label":"Legacy Array","accessToken":"access-2","id_token":"id-2","refresh_token":"refresh-2","accountID":"acc-array"}]  ',
+        '  {"tokens":{"access_token":"access-3","id_token":"id-3","refresh_token":"refresh-3","account_id":"acc-ready"}}  ',
+        "",
+      ],
+      content: "  plain-text-fallback  ",
     });
 
     let request = lastRequest();
     expect(request.init.method).toBe("POST");
     expect(request.url).toBe("http://127.0.0.1:8317/v0/management/codex-manager/import");
-    expect(JSON.parse(String(request.init.body))).toEqual({
-      contents: ['{"auth":1}', '{"auth":2}'],
-    });
+    const importBody = JSON.parse(String(request.init.body)) as { contents: string[] };
+    expect(importBody.contents.every((item) => item === item.trim())).toBe(true);
+    expect(importBody.contents.slice(0, 3).map((item) => JSON.parse(item))).toEqual([
+      {
+        label: "Legacy Flat",
+        access_token: "access-1",
+        idToken: "id-1",
+        refreshToken: "refresh-1",
+        chatgpt_account_id: "acc-legacy",
+        tokens: {
+          access_token: "access-1",
+          id_token: "id-1",
+          refresh_token: "refresh-1",
+          account_id: "acc-legacy",
+        },
+      },
+      [
+        {
+            label: "Legacy Array",
+            accessToken: "access-2",
+            id_token: "id-2",
+            refresh_token: "refresh-2",
+            accountID: "acc-array",
+            tokens: {
+              access_token: "access-2",
+              id_token: "id-2",
+            refresh_token: "refresh-2",
+            account_id: "acc-array",
+          },
+        },
+      ],
+      {
+        tokens: {
+          access_token: "access-3",
+          id_token: "id-3",
+          refresh_token: "refresh-3",
+          account_id: "acc-ready",
+        },
+      },
+    ]);
+    expect(importBody.contents[3]).toBe("plain-text-fallback");
 
     await codexManagerApi.deleteAccount(" acc-alpha ");
 
     request = lastRequest();
     expect(request.init.method).toBe("DELETE");
-    expect(request.url).toBe("http://127.0.0.1:8317/v0/management/codex-manager/accounts/acc-alpha");
+    expect(request.url).toBe(
+      "http://127.0.0.1:8317/v0/management/codex-manager/accounts/acc-alpha",
+    );
 
     await codexManagerApi.setRelayState(" acc-alpha ", false);
 
@@ -321,6 +381,51 @@ describe("codexManagerApi", () => {
       "http://127.0.0.1:8317/v0/management/codex-manager/accounts/acc-alpha/relay-state",
     );
     expect(JSON.parse(String(request.init.body))).toEqual({ relayEnabled: false });
+  });
+
+  test("exportAccounts and deleteUnavailableAccounts call the browser download endpoints", async () => {
+    fetchMock.mockResolvedValueOnce(blobResponse("zip-bytes")).mockResolvedValueOnce(
+      jsonResponse(
+        createEnvelope({
+          scanned: 3,
+          deleted: 1,
+          skippedAvailable: 1,
+          skippedNonFree: 1,
+          skippedMissingUsage: 0,
+          skippedMissingToken: 0,
+          deletedAccountIds: ["acc-alpha"],
+          localCredentialsRemoved: 1,
+          localProjectionsTombstoned: 1,
+        }),
+      ),
+    );
+
+    const exportBlob = await codexManagerApi.exportAccounts();
+    expect(exportBlob.type).toBe("application/zip");
+    expect(exportBlob.size).toBeGreaterThan(0);
+
+    let request = lastRequest();
+    expect(request.init.method).toBeUndefined();
+    expect(request.url).toBe("http://127.0.0.1:8317/v0/management/codex-manager/export");
+
+    const cleanup = await codexManagerApi.deleteUnavailableAccounts();
+    expect(cleanup).toEqual({
+      scanned: 3,
+      deleted: 1,
+      skippedAvailable: 1,
+      skippedNonFree: 1,
+      skippedMissingUsage: 0,
+      skippedMissingToken: 0,
+      deletedAccountIds: ["acc-alpha"],
+      localCredentialsRemoved: 1,
+      localProjectionsTombstoned: 1,
+    });
+
+    request = lastRequest();
+    expect(request.init.method).toBe("POST");
+    expect(request.url).toBe(
+      "http://127.0.0.1:8317/v0/management/codex-manager/accounts/free/delete-unavailable",
+    );
   });
 
   test("unwraps envelope errors and falls back to empty list data for empty responses", async () => {
@@ -337,7 +442,9 @@ describe("codexManagerApi", () => {
       )
       .mockResolvedValueOnce(emptyResponse());
 
-    await expect(codexManagerApi.listAccounts()).rejects.toThrow("codex-manager upstream unavailable");
+    await expect(codexManagerApi.listAccounts()).rejects.toThrow(
+      "codex-manager upstream unavailable",
+    );
 
     const result = await codexManagerApi.listUsage({ page: 3, pageSize: 5, query: "  " });
     expect(result).toEqual({
