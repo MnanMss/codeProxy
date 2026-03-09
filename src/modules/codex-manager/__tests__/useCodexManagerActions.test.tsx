@@ -4,6 +4,7 @@ import type {
   CodexManagerAccount,
   CodexManagerAccountUsage,
   CodexManagerDeleteData,
+  CodexManagerDeleteUnavailableData,
   CodexManagerImportData,
   CodexManagerLoginCompleteData,
   CodexManagerLoginStartData,
@@ -17,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   getLoginStatus: vi.fn(),
   completeLogin: vi.fn(),
   importAccounts: vi.fn(),
+  exportAccounts: vi.fn(),
+  deleteUnavailableAccounts: vi.fn(),
   deleteAccount: vi.fn(),
   setRelayState: vi.fn(),
   refreshAccountUsage: vi.fn(),
@@ -29,6 +32,8 @@ vi.mock("@/lib/http/apis", () => ({
     getLoginStatus: mocks.getLoginStatus,
     completeLogin: mocks.completeLogin,
     importAccounts: mocks.importAccounts,
+    exportAccounts: mocks.exportAccounts,
+    deleteUnavailableAccounts: mocks.deleteUnavailableAccounts,
     deleteAccount: mocks.deleteAccount,
     setRelayState: mocks.setRelayState,
     refreshAccountUsage: mocks.refreshAccountUsage,
@@ -54,10 +59,64 @@ describe("useCodexManagerActions", () => {
     mocks.getLoginStatus.mockReset();
     mocks.completeLogin.mockReset();
     mocks.importAccounts.mockReset();
+    mocks.exportAccounts.mockReset();
+    mocks.deleteUnavailableAccounts.mockReset();
     mocks.deleteAccount.mockReset();
     mocks.setRelayState.mockReset();
     mocks.refreshAccountUsage.mockReset();
     mocks.refreshUsageBatch.mockReset();
+  });
+
+  test("covers export and delete-unavailable actions and keeps their states isolated", async () => {
+    const exportBlob = new Blob(["zip-bytes"], { type: "application/zip" });
+    const cleanupData: CodexManagerDeleteUnavailableData = {
+      scanned: 4,
+      deleted: 2,
+      skippedAvailable: 1,
+      skippedNonFree: 1,
+      skippedMissingUsage: 0,
+      skippedMissingToken: 0,
+      deletedAccountIds: ["acc-alpha", "acc-bravo"],
+      localCredentialsRemoved: 2,
+      localProjectionsTombstoned: 2,
+    };
+
+    const exportDeferred = createDeferred<Blob>();
+    mocks.exportAccounts.mockReturnValueOnce(exportDeferred.promise);
+    mocks.deleteUnavailableAccounts.mockResolvedValueOnce(cleanupData);
+
+    const { result } = renderHook(() => useCodexManagerActions());
+
+    let exportPromise!: Promise<Blob | null>;
+    act(() => {
+      exportPromise = result.current.actions.exportAccounts();
+    });
+
+    expect(mocks.exportAccounts).toHaveBeenCalledTimes(1);
+    expect(result.current.state.pending.exportAccounts).toBe(true);
+    expect(result.current.state.error.exportAccounts).toBeNull();
+    expect(result.current.state.result.exportAccounts).toBeNull();
+
+    exportDeferred.resolve(exportBlob);
+    await act(async () => {
+      await exportPromise;
+    });
+
+    await waitFor(() => {
+      expect(result.current.state.pending.exportAccounts).toBe(false);
+      expect(result.current.state.result.exportAccounts).toBe(exportBlob);
+    });
+
+    await act(async () => {
+      const cleanupResult = await result.current.actions.deleteUnavailableAccounts();
+      expect(cleanupResult).toEqual(cleanupData);
+    });
+
+    expect(mocks.deleteUnavailableAccounts).toHaveBeenCalledTimes(1);
+    expect(result.current.state.pending.deleteUnavailableAccounts).toBe(false);
+    expect(result.current.state.error.deleteUnavailableAccounts).toBeNull();
+    expect(result.current.state.result.deleteUnavailableAccounts).toEqual(cleanupData);
+    expect(result.current.state.result.exportAccounts).toBe(exportBlob);
   });
 
   test("covers login actions and toggles pending before and after promise resolution", async () => {
@@ -180,7 +239,10 @@ describe("useCodexManagerActions", () => {
     await act(async () => {
       const deleteResult = await result.current.actions.deleteAccount("acc-alpha");
       const relayStateResult = await result.current.actions.setRelayState("acc-alpha", false);
-      const refreshBatchResult = await result.current.actions.refreshUsageBatch(["acc-alpha", "acc-bravo"]);
+      const refreshBatchResult = await result.current.actions.refreshUsageBatch([
+        "acc-alpha",
+        "acc-bravo",
+      ]);
 
       expect(deleteResult).toBeNull();
       expect(relayStateResult).toEqual(relayStateData);
@@ -304,6 +366,31 @@ describe("useCodexManagerActions", () => {
     expect(result.current.state.result.completeLogin).toBeNull();
   });
 
+  test("stores readable errors for exportAccounts and deleteUnavailableAccounts", async () => {
+    mocks.exportAccounts.mockRejectedValueOnce(undefined);
+    mocks.deleteUnavailableAccounts.mockRejectedValueOnce(new Error("清理失败"));
+
+    const { result } = renderHook(() => useCodexManagerActions());
+
+    await act(async () => {
+      const exportResult = await result.current.actions.exportAccounts();
+      expect(exportResult).toBeNull();
+    });
+
+    expect(result.current.state.pending.exportAccounts).toBe(false);
+    expect(result.current.state.error.exportAccounts).toBe("导出 Codex 账号失败");
+    expect(result.current.state.result.exportAccounts).toBeNull();
+
+    await act(async () => {
+      const cleanupResult = await result.current.actions.deleteUnavailableAccounts();
+      expect(cleanupResult).toBeNull();
+    });
+
+    expect(result.current.state.pending.deleteUnavailableAccounts).toBe(false);
+    expect(result.current.state.error.deleteUnavailableAccounts).toBe("清理失败");
+    expect(result.current.state.result.deleteUnavailableAccounts).toBeNull();
+  });
+
   test("stores readable error for getLoginStatus when api throws Error", async () => {
     mocks.getLoginStatus.mockRejectedValueOnce(new Error("状态失败"));
 
@@ -385,7 +472,10 @@ describe("useCodexManagerActions", () => {
     const { result } = renderHook(() => useCodexManagerActions());
 
     await act(async () => {
-      const refreshBatchResult = await result.current.actions.refreshUsageBatch(["acc-echo", "acc-foxtrot"]);
+      const refreshBatchResult = await result.current.actions.refreshUsageBatch([
+        "acc-echo",
+        "acc-foxtrot",
+      ]);
       expect(refreshBatchResult).toBeNull();
     });
 
@@ -493,7 +583,9 @@ describe("useCodexManagerActions", () => {
     const { result } = renderHook(() => useCodexManagerActions());
 
     await act(async () => {
-      const importResult = await result.current.actions.importAccounts({ contents: ['{"auth":4}'] });
+      const importResult = await result.current.actions.importAccounts({
+        contents: ['{"auth":4}'],
+      });
       expect(importResult).toBeNull();
     });
 
