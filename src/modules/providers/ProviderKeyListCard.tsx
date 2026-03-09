@@ -22,7 +22,6 @@ export function ProviderKeyListCard({
   onEdit,
   onDelete,
   onToggleEnabled,
-  onCopy,
   getStats,
   getStatusBar,
 }: {
