@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   getLoginStatus: vi.fn(),
   completeLogin: vi.fn(),
   importAccounts: vi.fn(),
+  exportAccounts: vi.fn(),
+  deleteUnavailableAccounts: vi.fn(),
   deleteAccount: vi.fn(),
   setRelayState: vi.fn(),
   refreshAccountUsage: vi.fn(),
@@ -32,6 +34,8 @@ vi.mock("@/lib/http/apis", () => ({
     getLoginStatus: mocks.getLoginStatus,
     completeLogin: mocks.completeLogin,
     importAccounts: mocks.importAccounts,
+    exportAccounts: mocks.exportAccounts,
+    deleteUnavailableAccounts: mocks.deleteUnavailableAccounts,
     deleteAccount: mocks.deleteAccount,
     setRelayState: mocks.setRelayState,
     refreshAccountUsage: mocks.refreshAccountUsage,
@@ -91,6 +95,8 @@ describe("CodexManagerPage action flow wiring", () => {
     mocks.getLoginStatus.mockReset();
     mocks.completeLogin.mockReset();
     mocks.importAccounts.mockReset();
+    mocks.exportAccounts.mockReset();
+    mocks.deleteUnavailableAccounts.mockReset();
     mocks.deleteAccount.mockReset();
     mocks.setRelayState.mockReset();
     mocks.refreshAccountUsage.mockReset();
@@ -98,10 +104,7 @@ describe("CodexManagerPage action flow wiring", () => {
 
     // Default mock responses for data hook
     mocks.listAccounts.mockResolvedValue({
-      items: [
-        createMockAccount("acc-1"),
-        createMockAccount("acc-2", { relayEnabled: true }),
-      ],
+      items: [createMockAccount("acc-1"), createMockAccount("acc-2", { relayEnabled: true })],
       total: 2,
       page: 1,
       pageSize: 20,
@@ -144,6 +147,15 @@ describe("CodexManagerPage action flow wiring", () => {
       updated: 0,
       failed: 0,
       errors: [],
+    });
+    mocks.exportAccounts.mockResolvedValue(new Blob(["zip"], { type: "application/zip" }));
+    mocks.deleteUnavailableAccounts.mockResolvedValue({
+      scanned: 2,
+      deleted: 1,
+      skippedAvailable: 1,
+      skippedNonFree: 0,
+      skippedMissingUsage: 0,
+      skippedMissingToken: 0,
     });
     mocks.deleteAccount.mockResolvedValue({
       accountId: "acc-1",
@@ -271,6 +283,158 @@ describe("CodexManagerPage action flow wiring", () => {
     });
   });
 
+  test("selecting multiple files triggers normalized batch import", async () => {
+    const user = userEvent.setup();
+    render(<TestRouter />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("codex-import-button")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("codex-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("codex-import-panel")).toBeInTheDocument();
+    });
+
+    const fileInput = screen.getByTestId("codex-import-file-input") as HTMLInputElement;
+    const legacyFlatFile = new File(
+      [
+        JSON.stringify({
+          label: "Legacy Flat",
+          access_token: "access-1",
+          idToken: "id-1",
+          refreshToken: "refresh-1",
+          chatgpt_account_id: "acc-legacy",
+        }),
+      ],
+      "legacy-flat.json",
+      { type: "application/json" },
+    );
+    const legacyArrayFile = new File(
+      [
+        JSON.stringify([
+          {
+            label: "Legacy Array",
+            accessToken: "access-2",
+            id_token: "id-2",
+            refresh_token: "refresh-2",
+            accountId: "acc-array",
+          },
+        ]),
+      ],
+      "legacy-array.json",
+      { type: "application/json" },
+    );
+
+    await user.upload(fileInput, [legacyFlatFile, legacyArrayFile]);
+
+    await waitFor(() => {
+      expect(mocks.importAccounts).toHaveBeenCalledWith({
+        contents: [
+          JSON.stringify({
+            label: "Legacy Flat",
+            access_token: "access-1",
+            idToken: "id-1",
+            refreshToken: "refresh-1",
+            chatgpt_account_id: "acc-legacy",
+            tokens: {
+              access_token: "access-1",
+              id_token: "id-1",
+              refresh_token: "refresh-1",
+              account_id: "acc-legacy",
+            },
+          }),
+          JSON.stringify([
+            {
+              label: "Legacy Array",
+              accessToken: "access-2",
+              id_token: "id-2",
+              refresh_token: "refresh-2",
+              accountId: "acc-array",
+              tokens: {
+                access_token: "access-2",
+                id_token: "id-2",
+                refresh_token: "refresh-2",
+                account_id: "acc-array",
+              },
+            },
+          ]),
+        ],
+      });
+    });
+  });
+
+  test("clicking codex-export-button starts a browser download", async () => {
+    const user = userEvent.setup();
+    const createObjectURL = vi.fn(() => "blob:codex-export");
+    const revokeObjectURL = vi.fn();
+    const originalCreateObjectURL = window.URL.createObjectURL;
+    const originalRevokeObjectURL = window.URL.revokeObjectURL;
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    Object.defineProperty(window.URL, "createObjectURL", {
+      configurable: true,
+      writable: true,
+      value: createObjectURL,
+    });
+    Object.defineProperty(window.URL, "revokeObjectURL", {
+      configurable: true,
+      writable: true,
+      value: revokeObjectURL,
+    });
+
+    try {
+      render(<TestRouter />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("codex-export-button")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTestId("codex-export-button"));
+
+      await waitFor(() => {
+        expect(mocks.exportAccounts).toHaveBeenCalledTimes(1);
+        expect(createObjectURL).toHaveBeenCalledTimes(1);
+        expect(clickSpy).toHaveBeenCalledTimes(1);
+        expect(revokeObjectURL).toHaveBeenCalledWith("blob:codex-export");
+      });
+    } finally {
+      clickSpy.mockRestore();
+      Object.defineProperty(window.URL, "createObjectURL", {
+        configurable: true,
+        writable: true,
+        value: originalCreateObjectURL,
+      });
+      Object.defineProperty(window.URL, "revokeObjectURL", {
+        configurable: true,
+        writable: true,
+        value: originalRevokeObjectURL,
+      });
+    }
+  });
+
+  test("clicking codex-delete-unavailable-button calls cleanup action and refreshes list", async () => {
+    const user = userEvent.setup();
+    render(<TestRouter />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("codex-delete-unavailable-button")).toBeInTheDocument();
+    });
+
+    mocks.listAccounts.mockClear();
+
+    await user.click(screen.getByTestId("codex-delete-unavailable-button"));
+
+    await waitFor(() => {
+      expect(mocks.deleteUnavailableAccounts).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() => {
+      expect(mocks.listAccounts).toHaveBeenCalled();
+    });
+  });
+
   test("clicking codex-delete-button-{accountId} calls deleteAccount action", async () => {
     const user = userEvent.setup();
     render(<TestRouter />);
@@ -384,14 +548,14 @@ describe("CodexManagerPage action flow wiring", () => {
       expect(screen.getByTestId("codex-runtime-badge-acc-1")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("codex-runtime-badge-acc-1")).toHaveTextContent("已纳入 CliRelay 调用");
+    expect(screen.getByTestId("codex-runtime-badge-acc-1")).toHaveTextContent(
+      "已纳入 CliRelay 调用",
+    );
   });
 
   test("runtime badges show '已本地禁用' for runtimeIncluded=false", async () => {
     mocks.listAccounts.mockResolvedValueOnce({
-      items: [
-        createMockAccount("acc-disabled", { runtimeIncluded: false, relayEnabled: false }),
-      ],
+      items: [createMockAccount("acc-disabled", { runtimeIncluded: false, relayEnabled: false })],
       total: 1,
       page: 1,
       pageSize: 20,
@@ -409,9 +573,7 @@ describe("CodexManagerPage action flow wiring", () => {
 
   test("runtime badges show '来源不可用' for stale=true", async () => {
     mocks.listAccounts.mockResolvedValueOnce({
-      items: [
-        createMockAccount("acc-stale", { stale: true, runtimeIncluded: true }),
-      ],
+      items: [createMockAccount("acc-stale", { stale: true, runtimeIncluded: true })],
       total: 1,
       page: 1,
       pageSize: 20,
@@ -548,7 +710,7 @@ describe("CodexManagerPage action flow wiring", () => {
     // Enter state and code
     const stateInput = screen.getByTestId("codex-login-state-input");
     const codeInput = screen.getByTestId("codex-login-code-input");
-    
+
     await user.type(stateInput, "test-state-123");
     await user.type(codeInput, "test-code-456");
 
@@ -780,9 +942,7 @@ describe("CodexManagerPage action flow wiring", () => {
     expect(screen.queryByTestId("codex-account-detail-drawer")).not.toBeInTheDocument();
 
     // Find and click the 查看 button for acc-1
-    const viewButton = screen.getAllByRole("button").find(
-      (btn) => btn.textContent === "查看"
-    );
+    const viewButton = screen.getAllByRole("button").find((btn) => btn.textContent === "查看");
     expect(viewButton).toBeDefined();
     await user.click(viewButton!);
 
@@ -902,7 +1062,9 @@ describe("CodexManagerPage action flow wiring", () => {
 
     expect(screen.getByTestId("codex-batch-refresh-item-acc-1")).toBeInTheDocument();
     expect(screen.getByTestId("codex-batch-refresh-item-acc-2")).toBeInTheDocument();
-    expect(screen.getByTestId("codex-batch-refresh-reason-acc-2")).toHaveTextContent("Network timeout");
+    expect(screen.getByTestId("codex-batch-refresh-reason-acc-2")).toHaveTextContent(
+      "Network timeout",
+    );
   });
 
   test("login timeout: verifies 2-second polling and 5-minute timeout", async () => {

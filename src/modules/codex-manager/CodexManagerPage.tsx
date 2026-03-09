@@ -1,6 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Users, BarChart3, Plus, Upload, Trash2, RefreshCw, Power, CheckCircle, XCircle, Clock, AlertCircle, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Users,
+  BarChart3,
+  Plus,
+  Upload,
+  Download,
+  Trash2,
+  RefreshCw,
+  Power,
+  CheckCircle,
+  XCircle,
+  Clock,
+  AlertCircle,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import type { CodexManagerAccountListData, CodexManagerImportData } from "@/lib/http/types";
+import {
+  normalizeCodexManagerImportContentForCompatibility,
+  normalizeCodexManagerImportContents,
+} from "@/lib/http/apis/codex-manager-import";
 import { Card } from "@/modules/ui/Card";
 import { Button } from "@/modules/ui/Button";
 import { EmptyState } from "@/modules/ui/EmptyState";
@@ -15,6 +36,51 @@ const TAB_CONFIG: { id: CodexManagerTab; label: string; icon: typeof Users }[] =
   { id: "accounts", label: "账号管理", icon: Users },
   { id: "quota", label: "配额查看", icon: BarChart3 },
 ];
+
+const CODEX_MANAGER_EXPORT_FILENAME = "codex-manager-accounts.zip";
+
+const readImportFileText = async (file: File): Promise<string> => {
+  if (typeof file.text === "function") {
+    return file.text();
+  }
+
+  return new Response(file).text();
+};
+
+const readImportFileContents = async (files: File[]): Promise<string[]> => {
+  const contents: string[] = [];
+
+  for (const file of files) {
+    try {
+      const text = await readImportFileText(file);
+      if (String(text ?? "").trim()) {
+        contents.push(text);
+      }
+    } catch {}
+  }
+
+  return contents;
+};
+
+const downloadExportBlob = (blob: Blob, filename = CODEX_MANAGER_EXPORT_FILENAME): boolean => {
+  const createObjectURL = window.URL?.createObjectURL;
+  if (typeof createObjectURL !== "function") {
+    return false;
+  }
+
+  const objectUrl = createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.style.display = "none";
+
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL?.revokeObjectURL?.(objectUrl);
+
+  return true;
+};
 
 function TabButton({
   active,
@@ -56,7 +122,15 @@ function AccountsTab({
   actionHooks: ReturnType<typeof useCodexManagerActions>;
 }) {
   const { accountsList } = resources;
-  const { loadAccountsList, loadSelectedAccountDetail, loadSelectedAccountUsage, setSelectedAccountId, toggleSelectedAccountId, setAccountsQuery } = dataActions;
+  const {
+    loadAccountsList,
+    loadSelectedAccountDetail,
+    loadSelectedAccountUsage,
+    setSelectedAccountId,
+    setSelectedAccountIds,
+    toggleSelectedAccountId,
+    setAccountsQuery,
+  } = dataActions;
   const accountsQuery = dataState.accountsQuery;
   const { state: actionState, actions } = actionHooks;
 
@@ -76,6 +150,7 @@ function AccountsTab({
   // Import state
   const [importContent, setImportContent] = useState<string>("");
   const [showImportInput, setShowImportInput] = useState(false);
+  const importFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     void loadAccountsList();
@@ -119,15 +194,24 @@ function AccountsTab({
     return () => clearInterval(intervalId);
   }, [activeLoginId, actions, loadAccountsList]);
 
-  const handleRefreshOne = useCallback((accountId: string) => {
-    void actions.refreshAccountUsage(accountId).then(() => {
-      void loadAccountsList();
-      if (selectedAccountId === accountId) {
-        void loadSelectedAccountDetail();
-        void loadSelectedAccountUsage();
-      }
-    });
-  }, [actions, loadAccountsList, selectedAccountId, loadSelectedAccountDetail, loadSelectedAccountUsage]);
+  const handleRefreshOne = useCallback(
+    (accountId: string) => {
+      void actions.refreshAccountUsage(accountId).then(() => {
+        void loadAccountsList();
+        if (selectedAccountId === accountId) {
+          void loadSelectedAccountDetail();
+          void loadSelectedAccountUsage();
+        }
+      });
+    },
+    [
+      actions,
+      loadAccountsList,
+      selectedAccountId,
+      loadSelectedAccountDetail,
+      loadSelectedAccountUsage,
+    ],
+  );
 
   const handleRefreshBatch = useCallback(() => {
     if (selectedAccountIds.length === 0) return;
@@ -138,27 +222,67 @@ function AccountsTab({
         void loadSelectedAccountUsage();
       }
     });
-  }, [actions, selectedAccountIds, loadAccountsList, selectedAccountId, loadSelectedAccountDetail, loadSelectedAccountUsage]);
+  }, [
+    actions,
+    selectedAccountIds,
+    loadAccountsList,
+    selectedAccountId,
+    loadSelectedAccountDetail,
+    loadSelectedAccountUsage,
+  ]);
 
-  const handleDelete = useCallback((accountId: string) => {
-    void actions.deleteAccount(accountId).then((result) => {
-      if (result) {
-        if (selectedAccountId === accountId) {
-          setSelectedAccountId(null);
+  const handleDelete = useCallback(
+    (accountId: string) => {
+      void actions.deleteAccount(accountId).then((result) => {
+        if (result) {
+          if (selectedAccountId === accountId) {
+            setSelectedAccountId(null);
+          }
+          if (selectedAccountIds.includes(accountId)) {
+            toggleSelectedAccountId(accountId);
+          }
+          void loadAccountsList();
         }
-        if (selectedAccountIds.includes(accountId)) {
-          toggleSelectedAccountId(accountId);
-        }
+      });
+    },
+    [
+      actions,
+      loadAccountsList,
+      selectedAccountId,
+      selectedAccountIds,
+      setSelectedAccountId,
+      toggleSelectedAccountId,
+    ],
+  );
+
+  const handleRelayToggle = useCallback(
+    (accountId: string, currentState: boolean) => {
+      void actions.setRelayState(accountId, !currentState).then(() => {
         void loadAccountsList();
-      }
-    });
-  }, [actions, loadAccountsList, selectedAccountId, selectedAccountIds, setSelectedAccountId, toggleSelectedAccountId]);
+      });
+    },
+    [actions, loadAccountsList],
+  );
 
-  const handleRelayToggle = useCallback((accountId: string, currentState: boolean) => {
-    void actions.setRelayState(accountId, !currentState).then(() => {
-      void loadAccountsList();
-    });
-  }, [actions, loadAccountsList]);
+  const reconcileSelectionAfterRefresh = useCallback(
+    (listData: CodexManagerAccountListData | null) => {
+      if (!listData) return;
+
+      const availableAccountIds = new Set(listData.items.map((item) => item.accountId));
+      const nextSelectedAccountIds = selectedAccountIds.filter((accountId) =>
+        availableAccountIds.has(accountId),
+      );
+
+      if (nextSelectedAccountIds.length !== selectedAccountIds.length) {
+        setSelectedAccountIds(nextSelectedAccountIds);
+      }
+
+      if (selectedAccountId && !availableAccountIds.has(selectedAccountId)) {
+        setSelectedAccountId(null);
+      }
+    },
+    [selectedAccountId, selectedAccountIds, setSelectedAccountId, setSelectedAccountIds],
+  );
 
   const handleStartLogin = useCallback(() => {
     void actions.startLogin({ openBrowser: true }).then((result) => {
@@ -180,16 +304,87 @@ function AccountsTab({
     });
   }, [actions, loginState, loginCode, loadAccountsList]);
 
-  const handleImport = useCallback(() => {
-    if (!importContent.trim()) return;
-    void actions.importAccounts({ content: importContent }).then((result) => {
-      if (result && result.failed === 0) {
+  const handleImportResult = useCallback(
+    (result: CodexManagerImportData | null) => {
+      if (!result) return;
+
+      void loadAccountsList();
+      if (result.failed === 0) {
         setImportContent("");
         setShowImportInput(false);
-        void loadAccountsList();
+        if (importFileInputRef.current) {
+          importFileInputRef.current.value = "";
+        }
+      }
+    },
+    [loadAccountsList],
+  );
+
+  const handleImport = useCallback(() => {
+    const content = normalizeCodexManagerImportContentForCompatibility(importContent);
+    if (!content) return;
+
+    void actions.importAccounts({ content }).then(handleImportResult);
+  }, [actions, handleImportResult, importContent]);
+
+  const handleImportFiles = useCallback(
+    async (files: File[]) => {
+      const contents = normalizeCodexManagerImportContents({
+        contents: await readImportFileContents(files),
+      });
+      if (contents.length === 0) return;
+
+      const result = await actions.importAccounts({ contents });
+      handleImportResult(result);
+    },
+    [actions, handleImportResult],
+  );
+
+  const handleImportFileSelection = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.currentTarget.files ?? []);
+      event.currentTarget.value = "";
+      if (files.length === 0) return;
+
+      void handleImportFiles(files);
+    },
+    [handleImportFiles],
+  );
+
+  const handleOpenImportFilePicker = useCallback(() => {
+    importFileInputRef.current?.click();
+  }, []);
+
+  const handleExport = useCallback(() => {
+    void actions.exportAccounts().then((blob) => {
+      if (!blob) return;
+      downloadExportBlob(blob);
+    });
+  }, [actions]);
+
+  const handleDeleteUnavailable = useCallback(() => {
+    void actions.deleteUnavailableAccounts().then(async (result) => {
+      if (!result) return;
+
+      const nextAccountsList = await loadAccountsList();
+      reconcileSelectionAfterRefresh(nextAccountsList);
+
+      if (
+        selectedAccountId &&
+        nextAccountsList?.items.some((item) => item.accountId === selectedAccountId)
+      ) {
+        void loadSelectedAccountDetail();
+        void loadSelectedAccountUsage();
       }
     });
-  }, [actions, importContent, loadAccountsList]);
+  }, [
+    actions,
+    loadAccountsList,
+    loadSelectedAccountDetail,
+    loadSelectedAccountUsage,
+    reconcileSelectionAfterRefresh,
+    selectedAccountId,
+  ]);
 
   // Helper to get status icon and color
   const getLoginStatusDisplay = (status: string | undefined) => {
@@ -239,6 +434,26 @@ function AccountsTab({
           <Button
             variant="secondary"
             size="sm"
+            onClick={handleExport}
+            disabled={actionState.pending.exportAccounts}
+            data-testid="codex-export-button"
+          >
+            <Download size={14} className="mr-1" />
+            {actionState.pending.exportAccounts ? "导出中..." : "导出"}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleDeleteUnavailable}
+            disabled={actionState.pending.deleteUnavailableAccounts}
+            data-testid="codex-delete-unavailable-button"
+          >
+            <Trash2 size={14} className="mr-1" />
+            {actionState.pending.deleteUnavailableAccounts ? "清理中..." : "删除不可用免费"}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setShowCompleteLogin((v) => !v)}
             disabled={actionState.pending.completeLogin}
             data-testid="codex-complete-login-toggle"
@@ -271,7 +486,9 @@ function AccountsTab({
           >
             <div className="flex items-center gap-2">
               {(() => {
-                const status = loginTimedOut ? "timed_out" : actionState.result.getLoginStatus?.status;
+                const status = loginTimedOut
+                  ? "timed_out"
+                  : actionState.result.getLoginStatus?.status;
                 const StatusIcon = getLoginStatusDisplay(status).icon;
                 const statusColor = getLoginStatusDisplay(status).color;
                 const statusLabel = getLoginStatusDisplay(status).label;
@@ -307,9 +524,7 @@ function AccountsTab({
             data-testid="codex-complete-login-panel"
             className="mb-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
           >
-            <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">
-              完成登录
-            </h4>
+            <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">完成登录</h4>
             <div className="space-y-3">
               <div>
                 <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">
@@ -366,9 +581,43 @@ function AccountsTab({
             data-testid="codex-import-panel"
             className="mb-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
           >
-            <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">
-              导入账号
-            </h4>
+            <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">导入账号</h4>
+            <input
+              ref={importFileInputRef}
+              type="file"
+              accept=".json,application/json"
+              multiple
+              onChange={handleImportFileSelection}
+              data-testid="codex-import-file-input"
+              className="hidden"
+            />
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-3 dark:border-neutral-800 dark:bg-neutral-900/40">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-900 dark:text-white">
+                    批量选择 JSON 文件
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    支持一次选择多个浏览器文件并自动批量导入；下方文本框仍可作为兼容兜底。
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleOpenImportFilePicker}
+                  disabled={actionState.pending.importAccounts}
+                  data-testid="codex-import-file-button"
+                >
+                  <Upload size={14} className="mr-1" />
+                  选择文件
+                </Button>
+              </div>
+            </div>
+            <div className="my-3 flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
+              <span className="h-px flex-1 bg-slate-200 dark:bg-neutral-800" />
+              <span>或粘贴内容导入</span>
+              <span className="h-px flex-1 bg-slate-200 dark:bg-neutral-800" />
+            </div>
             <textarea
               value={importContent}
               onChange={(e) => setImportContent(e.target.value)}
@@ -399,16 +648,13 @@ function AccountsTab({
           </div>
         )}
 
-
         {actionState.result.refreshUsageBatch && (
           <div
             data-testid="codex-batch-refresh-result"
             className="mb-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
           >
             <div className="mb-3 flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
-                批量刷新结果
-              </h4>
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-white">批量刷新结果</h4>
               <div className="flex items-center gap-3 text-xs">
                 <span className="text-emerald-600">
                   成功: {actionState.result.refreshUsageBatch.successCount}
@@ -440,7 +686,10 @@ function AccountsTab({
                       </span>
                     </div>
                     {!item.success && item.reason && (
-                      <span className="text-xs text-rose-600" data-testid={`codex-batch-refresh-reason-${item.accountId}`}>
+                      <span
+                        className="text-xs text-rose-600"
+                        data-testid={`codex-batch-refresh-reason-${item.accountId}`}
+                      >
                         {item.reason}
                       </span>
                     )}
@@ -454,7 +703,10 @@ function AccountsTab({
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
               <input
                 type="text"
                 value={accountsQuery.query}
@@ -479,8 +731,13 @@ function AccountsTab({
             </Button>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 dark:text-slate-400" data-testid="codex-accounts-pagination-info">
-              第 {accountsList.data.page} 页 · 共 {Math.ceil(accountsList.data.total / accountsList.data.pageSize) || 1} 页 · {accountsList.data.total} 条
+            <span
+              className="text-xs text-slate-500 dark:text-slate-400"
+              data-testid="codex-accounts-pagination-info"
+            >
+              第 {accountsList.data.page} 页 · 共{" "}
+              {Math.ceil(accountsList.data.total / accountsList.data.pageSize) || 1} 页 ·{" "}
+              {accountsList.data.total} 条
             </span>
             <div className="flex items-center gap-1">
               <Button
@@ -500,12 +757,16 @@ function AccountsTab({
                 variant="secondary"
                 size="sm"
                 onClick={() => {
-                  const maxPage = Math.ceil(accountsList.data.total / accountsList.data.pageSize) || 1;
+                  const maxPage =
+                    Math.ceil(accountsList.data.total / accountsList.data.pageSize) || 1;
                   const newPage = Math.min(maxPage, accountsQuery.page + 1);
                   setAccountsQuery({ page: newPage });
                   void loadAccountsList({ page: newPage });
                 }}
-                disabled={accountsQuery.page >= Math.ceil(accountsList.data.total / accountsList.data.pageSize)}
+                disabled={
+                  accountsQuery.page >=
+                  Math.ceil(accountsList.data.total / accountsList.data.pageSize)
+                }
                 data-testid="codex-accounts-next-page"
               >
                 <ChevronRight size={14} />
@@ -545,7 +806,11 @@ function AccountsTab({
                             : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
                       ].join(" ")}
                     >
-                      {item.stale ? "来源不可用" : item.runtimeIncluded ? "已纳入 CliRelay 调用" : "已本地禁用"}
+                      {item.stale
+                        ? "来源不可用"
+                        : item.runtimeIncluded
+                          ? "已纳入 CliRelay 调用"
+                          : "已本地禁用"}
                       {item.relayEnabled && " · Relay"}
                     </span>
                   </div>
@@ -637,7 +902,10 @@ function QuotaTab({
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
               <input
                 type="text"
                 value={usageQuery.query}
@@ -662,8 +930,13 @@ function QuotaTab({
             </Button>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 dark:text-slate-400" data-testid="codex-quota-pagination-info">
-              第 {usageList.data.page} 页 · 共 {Math.ceil(usageList.data.total / usageList.data.pageSize) || 1} 页 · {usageList.data.total} 条
+            <span
+              className="text-xs text-slate-500 dark:text-slate-400"
+              data-testid="codex-quota-pagination-info"
+            >
+              第 {usageList.data.page} 页 · 共{" "}
+              {Math.ceil(usageList.data.total / usageList.data.pageSize) || 1} 页 ·{" "}
+              {usageList.data.total} 条
             </span>
             <div className="flex items-center gap-1">
               <Button
@@ -688,7 +961,9 @@ function QuotaTab({
                   setUsageQuery({ page: newPage });
                   void loadUsageList({ page: newPage });
                 }}
-                disabled={usageQuery.page >= Math.ceil(usageList.data.total / usageList.data.pageSize)}
+                disabled={
+                  usageQuery.page >= Math.ceil(usageList.data.total / usageList.data.pageSize)
+                }
                 data-testid="codex-quota-next-page"
               >
                 <ChevronRight size={14} />
@@ -744,10 +1019,7 @@ function AccountDetailDrawer({
   if (!isOpen) return null;
 
   return (
-    <div
-      data-testid="codex-account-detail-drawer"
-      className="fixed inset-0 z-50 flex justify-end"
-    >
+    <div data-testid="codex-account-detail-drawer" className="fixed inset-0 z-50 flex justify-end">
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
         onClick={() => setSelectedAccountId(null)}
@@ -756,9 +1028,7 @@ function AccountDetailDrawer({
       <div className="relative z-10 h-full w-full max-w-md border-l border-slate-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-950">
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-neutral-800">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-              账号详情
-            </h3>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white">账号详情</h3>
             <Button variant="ghost" size="sm" onClick={() => setSelectedAccountId(null)}>
               关闭
             </Button>
@@ -840,9 +1110,16 @@ export function CodexManagerPage() {
       </div>
 
       {activeTab === "accounts" && (
-        <AccountsTab resources={resources} dataState={state} dataActions={dataActions} actionHooks={actionHooks} />
+        <AccountsTab
+          resources={resources}
+          dataState={state}
+          dataActions={dataActions}
+          actionHooks={actionHooks}
+        />
       )}
-      {activeTab === "quota" && <QuotaTab resources={resources} dataState={state} dataActions={dataActions} />}
+      {activeTab === "quota" && (
+        <QuotaTab resources={resources} dataState={state} dataActions={dataActions} />
+      )}
 
       <AccountDetailDrawer resources={resources} dataState={state} dataActions={dataActions} />
     </div>
